@@ -1,0 +1,1784 @@
+---
+# Source: open-match/templates/service-account.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# Include this namespace only when doing `helm template`.
+# helm 2 use namespace to manage its release so `helm install` with this namespace will be broken.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-match
+  labels:
+    app: open-match
+    release: open-match
+---
+# Source: open-match/templates/podsecuritypolicy.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# om-redis-podsecuritypolicy is the least restricted PSP used to create privileged pods to disable THP in host kernel.
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: om-redis-podsecuritypolicy
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+  labels:
+    app: open-match
+    release: open-match
+spec:
+  privileged: true
+  allowPrivilegeEscalation: true
+  allowedCapabilities:
+  - '*'
+  volumes:
+  - '*'
+  hostNetwork: true
+  hostPorts:
+  # Redis
+  - min: 6379
+    max: 6379
+  - min: 9121
+    max: 9121
+  hostIPC: true
+  hostPID: true
+  runAsUser:
+    rule: 'RunAsAny'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+---
+# Source: open-match/templates/podsecuritypolicy.yaml
+# om-core-podsecuritypolicy does not allow creating privileged pods and restrict binded pods to use the specified port ranges.
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: om-core-podsecuritypolicy
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    release: open-match
+spec:
+  allowPrivilegeEscalation: false
+  defaultAllowPrivilegeEscalation: false
+  forbiddenSysctls:
+  - "*"
+  fsGroup:
+    rule: "MustRunAs"
+    ranges:
+    - min: 1
+      max: 65535
+  hostIPC: false
+  hostNetwork: false
+  hostPID: false
+  hostPorts:
+  # Open Match Services
+  - min: 50500
+    max: 50510
+  - min: 51500
+    max: 51510
+  # Cassandra
+  - min: 7000
+    max: 7001
+  - min: 7199
+    max: 7199
+  - min: 9042
+    max: 9042
+  - min: 9160
+    max: 9160
+  # Grafana
+  - min: 3000
+    max: 3000
+  # Jaeger
+  - min: 5775
+    max: 5778
+  - min: 6831
+    max: 6832
+  - min: 14267
+    max: 14268
+  - min: 9411
+    max: 9411
+  - min: 16686
+    max: 16686
+  # Prometheus
+  - min: 9090
+    max: 9093
+  - min: 9100
+    max: 9100
+  - min: 8080
+    max: 8080
+  privileged: false  # Prevents creation of privileged Pods
+  readOnlyRootFilesystem: false
+  # Capabilities Reference: https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities
+  # TODO: Open Match itself doesn't need any capabilties but its dependencies do. We should split out the service accounts later.
+  allowedCapabilities:
+  - CHOWN
+  #requiredDropCapabilities:
+  #- ALL
+  runAsUser:
+    rule: "RunAsAny"
+    # Blocked on isolating the open match services from dependencies (Redis, Prometheus, etc.)
+    # Require the container to run without root privileges.
+    #rule: 'MustRunAsNonRoot'
+  seLinux:
+    # This policy assumes the nodes are using AppArmor rather than SELinux.
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: RunAsAny
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    # Assume that persistentVolumes set up by the cluster admin are safe to use.
+    - 'persistentVolumeClaim'
+---
+# Source: open-match/charts/redis/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: om-redis
+  labels:
+    app: redis
+    chart: redis-9.5.0
+    heritage: Helm
+    release: open-match
+data:
+  redis.conf: |-
+    # User-supplied configuration:
+    maxclients 100000
+    maxmemory 300000000
+    
+  master.conf: |-
+    dir /data
+  replica.conf: |-
+    dir /data
+    slave-read-only yes
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+  sentinel.conf: |-
+    dir "/tmp"
+    bind 0.0.0.0
+    port 26379
+    sentinel monitor om-redis-master om-redis-master-0.om-redis-headless.open-match.svc.cluster.local 6379 2
+    sentinel down-after-milliseconds om-redis-master 60000
+    sentinel failover-timeout om-redis-master 18000
+    sentinel parallel-syncs om-redis-master 1
+---
+# Source: open-match/charts/redis/templates/health-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: om-redis-health
+  labels:
+    app: redis
+    chart: redis-9.5.0
+    heritage: Helm
+    release: open-match
+data:
+  ping_readiness_local.sh: |-
+    response=$(
+      timeout -s 9 $1 \
+      redis-cli \
+        -h localhost \
+        -p $REDIS_PORT \
+        ping
+    )
+    if [ "$response" != "PONG" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_liveness_local.sh: |-
+    response=$(
+      timeout -s 9 $1 \
+      redis-cli \
+        -h localhost \
+        -p $REDIS_PORT \
+        ping
+    )
+    if [ "$response" != "PONG" ] && [ "$response" != "LOADING Redis is loading the dataset in memory" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_sentinel.sh: |-
+    response=$(
+      timeout -s 9 $1 \
+      redis-cli \
+        -h localhost \
+        -p $REDIS_SENTINEL_PORT \
+        ping
+    )
+    if [ "$response" != "PONG" ]; then
+      echo "$response"
+      exit 1
+    fi
+  parse_sentinels.awk: |-
+    /ip/ {FOUND_IP=1}
+    /port/ {FOUND_PORT=1}
+    /runid/ {FOUND_RUNID=1}
+    !/ip|port|runid/ {
+      if (FOUND_IP==1) {
+        IP=$1; FOUND_IP=0;
+      }
+      else if (FOUND_PORT==1) {
+        PORT=$1;
+        FOUND_PORT=0;
+      } else if (FOUND_RUNID==1) {
+        printf "\nsentinel known-sentinel om-redis-master %s %s %s", IP, PORT, $0; FOUND_RUNID=0;
+      }
+    }
+  ping_readiness_master.sh: |-
+    response=$(
+      timeout -s 9 $1 \
+      redis-cli \
+        -h $REDIS_MASTER_HOST \
+        -p $REDIS_MASTER_PORT_NUMBER \
+        ping
+    )
+    if [ "$response" != "PONG" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_liveness_master.sh: |-
+    response=$(
+      timeout -s 9 $1 \
+      redis-cli \
+        -h $REDIS_MASTER_HOST \
+        -p $REDIS_MASTER_PORT_NUMBER \
+        ping
+    )
+    if [ "$response" != "PONG" ] && [ "$response" != "LOADING Redis is loading the dataset in memory" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_readiness_local_and_master.sh: |-
+    script_dir="$(dirname "$0")"
+    exit_status=0
+    "$script_dir/ping_readiness_local.sh" $1 || exit_status=$?
+    "$script_dir/ping_readiness_master.sh" $1 || exit_status=$?
+    exit $exit_status
+  ping_liveness_local_and_master.sh: |-
+    script_dir="$(dirname "$0")"
+    exit_status=0
+    "$script_dir/ping_liveness_local.sh" $1 || exit_status=$?
+    "$script_dir/ping_liveness_master.sh" $1 || exit_status=$?
+    exit $exit_status
+---
+# Source: open-match/templates/om-configmap-default.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: om-configmap-default
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: config
+    release: open-match
+data:
+  matchmaker_config_default.yaml: |-
+    logging:
+      level: debug
+      format: text
+      rpc: false
+    # Open Match applies the exponential backoff strategy for its retryable gRPC calls.
+    # The settings below are the default backoff configuration used in Open Match.
+    # See https://github.com/cenkalti/backoff/blob/v3/exponential.go for detailed explanations
+    backoff:
+      # The initial retry interval (in milliseconds)
+      initialInterval: 100ms
+      # maxInterval caps the maximum time elapsed for a retry interval
+      maxInterval: 500ms
+      # The next retry interval is multiplied by this multiplier
+      multiplier: 1.5
+      # Randomize the retry interval
+      randFactor: 0.5
+      # maxElapsedTime caps the retry time (in milliseconds)
+      maxElapsedTime: 3000ms
+
+    api:
+      backend:
+        hostname: "om-backend"
+        grpcport: "50505"
+        httpport: "51505"
+      frontend:
+        hostname: "om-frontend"
+        grpcport: "50504"
+        httpport: "51504"
+      query:
+        hostname: "om-query"
+        grpcport: "50503"
+        httpport: "51503"
+      synchronizer:
+        hostname: "om-synchronizer"
+        grpcport: "50506"
+        httpport: "51506"
+      swaggerui:
+        hostname: "om-swaggerui"
+        httpport: "51500"
+
+      # Configurations for api.test and api.scale are used for testing.
+      test:
+        hostname: "test"
+        grpcport: "50509"
+        httpport: "51509"
+      scale:
+        httpport: "51509"
+
+    redis:
+      sentinelPort: 26379
+      sentinelMaster: om-redis-master
+      sentinelHostname: om-redis
+      sentinelUsePassword: 
+      usePassword: false
+      passwordPath: /opt/bitnami/redis/secrets/redis-password
+      pool:
+        maxIdle: 200
+        maxActive: 0
+        idleTimeout: 0
+        healthCheckTimeout: 300ms
+
+    telemetry:
+      reportingPeriod: "1m"
+      traceSamplingFraction: "0.01"
+      zpages:
+        enable: "true"
+      jaeger:
+        enable: "false"
+        agentEndpoint: "open-match-jaeger-agent:6831"
+        collectorEndpoint: "http://open-match-jaeger-collector:14268/api/traces"
+      prometheus:
+        enable: "false"
+        endpoint: "/metrics"
+        serviceDiscovery: "true"
+      stackdriverMetrics:
+        enable: "false"
+        gcpProjectId: "replace_with_your_project_id"
+        prefix: "open_match"
+---
+# Source: open-match/charts/redis/templates/redis-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: open-match-redis-service
+  labels:
+    app: redis
+    chart: redis-9.5.0
+    release: open-match
+    heritage: Helm
+---
+# Source: open-match/templates/service-account.yaml
+# Create a universal service account for open-match-core services.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: open-match-unprivileged-service
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    release: open-match
+automountServiceAccountToken: true
+---
+# Source: open-match/templates/service-account.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: om-redis-role
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    release: open-match
+rules:
+# Define om-redis-role to use om-redis-podsecuritypolicy
+- apiGroups:
+  - extensions
+  resources:
+  - podsecuritypolicies
+  resourceNames:
+  - om-redis-podsecuritypolicy
+  verbs:
+  - use
+---
+# Source: open-match/templates/service-account.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: om-service-role
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    release: open-match
+rules:
+# Define om-service-role to use om-core-podsecuritypolicy
+- apiGroups:
+  - extensions
+  resources:
+  - podsecuritypolicies
+  resourceNames:
+  - om-core-podsecuritypolicy
+  verbs:
+  - use
+---
+# Source: open-match/templates/service-account.yaml
+# This applies om-service-role to the open-match unprivileged service account under the release namespace. 
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: om-service-role-binding
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    release: open-match
+subjects:
+- kind: Group
+  name: system:authenticated # All authenticated users
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: om-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: open-match/templates/service-account.yaml
+# This applies om-redis role to the om-redis privileged service account under the release namespace.
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: om-redis-role-binding
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    release: open-match
+subjects:
+- kind: ServiceAccount
+  name: open-match-redis-service # Redis service account
+  namespace: open-match
+roleRef:
+  kind: Role
+  name: om-redis-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: open-match/charts/redis/templates/headless-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: om-redis-headless
+  labels:
+    app: redis
+    chart: redis-9.5.0
+    release: open-match
+    heritage: Helm
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: redis
+  - name: redis-sentinel
+    port: 26379
+    targetPort: redis-sentinel
+  selector:
+    app: redis
+    release: open-match
+---
+# Source: open-match/charts/redis/templates/metrics-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: om-redis-metrics
+  labels:
+    app: redis
+    chart: redis-9.5.0
+    release: open-match
+    heritage: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: 9121
+    targetPort: metrics
+  selector:
+    app: redis
+    release: open-match
+---
+# Source: open-match/charts/redis/templates/redis-with-sentinel-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: om-redis
+  labels:
+    app: redis
+    chart: redis-9.5.0
+    release: open-match
+    heritage: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: redis
+  - name: redis-sentinel
+    port: 26379
+    targetPort: redis-sentinel
+  selector:
+    app: redis
+    release: open-match
+---
+# Source: open-match/templates/backend.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-backend
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: backend
+    release: open-match
+spec:
+  selector:
+    app: open-match
+    component: backend
+    release: open-match
+  clusterIP: None
+  type: ClusterIP
+  ports:
+  - name: grpc
+    protocol: TCP
+    port: 50505
+  - name: http
+    protocol: TCP
+    port: 51505
+---
+# Source: open-match/templates/frontend.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-frontend
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: frontend
+    release: open-match
+spec:
+  selector:
+    app: open-match
+    component: frontend
+    release: open-match
+  clusterIP: None
+  type: ClusterIP
+  ports:
+  - name: grpc
+    protocol: TCP
+    port: 50504
+  - name: http
+    protocol: TCP
+    port: 51504
+---
+# Source: open-match/templates/query.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-query
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: query
+    release: open-match
+spec:
+  selector:
+    app: open-match
+    component: query
+    release: open-match
+  clusterIP: None
+  type: ClusterIP
+  ports:
+  - name: grpc
+    protocol: TCP
+    port: 50503
+  - name: http
+    protocol: TCP
+    port: 51503
+---
+# Source: open-match/templates/swaggerui.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-swaggerui
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: swaggerui
+    release: open-match
+spec:
+  selector:
+    app: open-match
+    component: swaggerui
+  type: ClusterIP
+  ports:
+  - name: http
+    protocol: TCP
+    port: 51500
+---
+# Source: open-match/templates/synchronizer.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-synchronizer
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: synchronizer
+    release: open-match
+spec:
+  selector:
+    app: open-match
+    component: synchronizer
+    release: open-match
+  type: ClusterIP
+  ports:
+  - name: grpc
+    protocol: TCP
+    port: 50506
+  - name: http
+    protocol: TCP
+    port: 51506
+---
+# Source: open-match/templates/backend.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: om-backend
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: backend
+    release: open-match
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: open-match
+      component: backend
+  template:
+    metadata:
+      namespace: open-match
+      annotations:
+        chart: open-match-1.0.0
+        heritage: Helm
+        
+      labels:
+        app: open-match
+        component: backend
+        release: open-match
+    spec:
+      
+      volumes:
+        
+        - name: om-config-volume-default
+          configMap:
+            name: om-configmap-default
+        - name: om-config-volume-override
+          configMap:
+            name: om-configmap-override
+        
+        
+      serviceAccountName: open-match-unprivileged-service
+      containers:
+      - name: om-backend
+        volumeMounts:
+          
+          - name: om-config-volume-default
+            mountPath: /app/config/default
+          - name: om-config-volume-override
+            mountPath: /app/config/override
+          
+          
+        image: "gcr.io/open-match-public-images/openmatch-backend:1.0.0"
+        ports:
+        - name: grpc
+          containerPort: 50505
+        - name: http
+          containerPort: 51505
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        livenessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz
+            port: 51505
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz?readiness=true
+            port: 51505
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 2
+---
+# Source: open-match/templates/frontend.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: om-frontend
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: frontend
+    release: open-match
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: open-match
+      component: frontend
+  template:
+    metadata:
+      namespace: open-match
+      annotations:
+        chart: open-match-1.0.0
+        heritage: Helm
+        
+      labels:
+        app: open-match
+        component: frontend
+        release: open-match
+    spec:
+      
+      volumes:
+        
+        - name: om-config-volume-default
+          configMap:
+            name: om-configmap-default
+        - name: om-config-volume-override
+          configMap:
+            name: om-configmap-override
+        
+        
+      serviceAccountName: open-match-unprivileged-service
+      containers:
+      - name: om-frontend
+        volumeMounts:
+          
+          - name: om-config-volume-default
+            mountPath: /app/config/default
+          - name: om-config-volume-override
+            mountPath: /app/config/override
+          
+          
+        image: "gcr.io/open-match-public-images/openmatch-frontend:1.0.0"
+        ports:
+        - name: grpc
+          containerPort: 50504
+        - name: http
+          containerPort: 51504
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        livenessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz
+            port: 51504
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz?readiness=true
+            port: 51504
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 2
+---
+# Source: open-match/templates/query.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: om-query
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: query
+    release: open-match
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: open-match
+      component: query
+  template:
+    metadata:
+      namespace: open-match
+      annotations:
+        chart: open-match-1.0.0
+        heritage: Helm
+        
+      labels:
+        app: open-match
+        component: query
+        release: open-match
+    spec:
+      
+      volumes:
+        
+        - name: om-config-volume-default
+          configMap:
+            name: om-configmap-default
+        - name: om-config-volume-override
+          configMap:
+            name: om-configmap-override
+        
+        
+      serviceAccountName: open-match-unprivileged-service
+      containers:
+      - name: om-query
+        volumeMounts:
+          
+          - name: om-config-volume-default
+            mountPath: /app/config/default
+          - name: om-config-volume-override
+            mountPath: /app/config/override
+          
+          
+        image: "gcr.io/open-match-public-images/openmatch-query:1.0.0"
+        ports:
+        - name: grpc
+          containerPort: 50503
+        - name: http
+          containerPort: 51503
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        livenessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz
+            port: 51503
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz?readiness=true
+            port: 51503
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 2
+---
+# Source: open-match/templates/swaggerui.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: om-swaggerui
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: swaggerui
+    release: open-match
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open-match
+      component: swaggerui
+  template:
+    metadata:
+      namespace: open-match
+      annotations:
+        chart: open-match-1.0.0
+        heritage: Helm
+      labels:
+        app: open-match
+        component: swaggerui
+        release: open-match
+    spec:
+      
+      volumes:
+        
+        - name: om-config-volume-default
+          configMap:
+            name: om-configmap-default
+        - name: om-config-volume-override
+          configMap:
+            name: om-configmap-override
+        
+      serviceAccountName: open-match-unprivileged-service
+      containers:
+      - name: om-swaggerui
+        volumeMounts:
+          
+          - name: om-config-volume-default
+            mountPath: /app/config/default
+          - name: om-config-volume-override
+            mountPath: /app/config/override
+          
+        image: "gcr.io/open-match-public-images/openmatch-swaggerui:1.0.0"
+        ports:
+        - name: http
+          containerPort: 51500
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        livenessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz
+            port: 51500
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz?readiness=true
+            port: 51500
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 2
+---
+# Source: open-match/templates/synchronizer.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: om-synchronizer
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: synchronizer
+    release: open-match
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open-match
+      component: synchronizer
+  template:
+    metadata:
+      namespace: open-match
+      annotations:
+        chart: open-match-1.0.0
+        heritage: Helm
+        
+      labels:
+        app: open-match
+        component: synchronizer
+        release: open-match
+    spec:
+      
+      volumes:
+        
+        - name: om-config-volume-default
+          configMap:
+            name: om-configmap-default
+        - name: om-config-volume-override
+          configMap:
+            name: om-configmap-override
+        
+        
+      serviceAccountName: open-match-unprivileged-service
+      containers:
+      - name: om-synchronizer
+        volumeMounts:
+          
+          - name: om-config-volume-default
+            mountPath: /app/config/default
+          - name: om-config-volume-override
+            mountPath: /app/config/override
+          
+          
+        image: "gcr.io/open-match-public-images/openmatch-synchronizer:1.0.0"
+        ports:
+        - name: grpc
+          containerPort: 50506
+        - name: http
+          containerPort: 51506
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        livenessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz
+            port: 51506
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz?readiness=true
+            port: 51506
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 2
+---
+# Source: open-match/templates/backend.yaml
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: om-backend
+  namespace: open-match
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: om-backend
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+---
+# Source: open-match/templates/frontend.yaml
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: om-frontend
+  namespace: open-match
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: om-frontend
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+---
+# Source: open-match/templates/query.yaml
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: om-query
+  namespace: open-match
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: om-query
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+---
+# Source: open-match/charts/redis/templates/redis-master-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: om-redis-master
+  labels:
+    app: redis
+    chart: redis-9.5.0
+    release: open-match
+    heritage: Helm
+spec:
+  selector:
+    matchLabels:
+      app: redis
+      release: open-match
+      role: master
+  serviceName: om-redis-headless
+  template:
+    metadata:
+      labels:
+        app: redis
+        chart: redis-9.5.0
+        release: open-match
+        role: master
+      annotations:
+        checksum/health: ceceb14eeeef6908003954eed8a4931d9b1ec157d7a9da73d65845a6d248574b
+        checksum/configmap: 374d8feedb0924ed8a3a143bc3138ab97bbbdfc4b27d452e43c38d95d583a22d
+        checksum/secret: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        prometheus.io/port: "9121"
+        prometheus.io/scrape: "true"
+    spec:      
+      securityContext:
+        fsGroup: 1001
+      serviceAccountName: "open-match-redis-service"
+      containers:
+      - name: om-redis
+        image: "docker.io/bitnami/redis:5.0.5-debian-9-r169"
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+          runAsUser: 1001
+        command:
+        - /bin/bash
+        - -c
+        - |
+          if [[ -n $REDIS_PASSWORD_FILE ]]; then
+            password_aux=`cat ${REDIS_PASSWORD_FILE}`
+            export REDIS_PASSWORD=$password_aux
+          fi
+          if [[ ! -f /opt/bitnami/redis/etc/master.conf ]];then
+            cp /opt/bitnami/redis/mounted-etc/master.conf /opt/bitnami/redis/etc/master.conf
+          fi
+          if [[ ! -f /opt/bitnami/redis/etc/redis.conf ]];then
+            cp /opt/bitnami/redis/mounted-etc/redis.conf /opt/bitnami/redis/etc/redis.conf
+          fi
+          ARGS=("--port" "${REDIS_PORT}")
+          ARGS+=("--protected-mode" "no")
+          ARGS+=("--include" "/opt/bitnami/redis/etc/redis.conf")
+          ARGS+=("--include" "/opt/bitnami/redis/etc/master.conf")
+          /run.sh ${ARGS[@]}
+        env:
+        - name: REDIS_REPLICATION_MODE
+          value: master
+        - name: ALLOW_EMPTY_PASSWORD
+          value: "yes"
+        - name: REDIS_PORT
+          value: "6379"
+        ports:
+        - name: redis
+          containerPort: 6379
+        livenessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_liveness_local.sh 5
+        readinessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_readiness_local.sh 5
+        resources:
+          requests:
+            cpu: 0.5
+            memory: 300Mi
+        volumeMounts:
+        - name: health
+          mountPath: /health
+        - name: redis-data
+          mountPath: /data
+          subPath: 
+        - name: config
+          mountPath: /opt/bitnami/redis/mounted-etc
+        - name: redis-tmp-conf
+          mountPath: /opt/bitnami/redis/etc/
+      - name: sentinel
+        image: "docker.io/bitnami/redis-sentinel:5.0.5-debian-9-r162"
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+          runAsUser: 1001
+        command:
+        - /bin/bash
+        - -c
+        - |
+          if [[ -n $REDIS_PASSWORD_FILE ]]; then
+            password_aux=`cat ${REDIS_PASSWORD_FILE}`
+            export REDIS_PASSWORD=$password_aux
+          fi
+          if [[ ! -f /opt/bitnami/redis-sentinel/etc/sentinel.conf ]];then
+            cp /opt/bitnami/redis-sentinel/mounted-etc/sentinel.conf /opt/bitnami/redis-sentinel/etc/sentinel.conf
+          fi
+          echo "Getting information about current running sentinels"
+          # Get information from existing sentinels
+          existing_sentinels=$(timeout -s 9 5 redis-cli --raw -h om-redis -a "$REDIS_PASSWORD" -p 26379 SENTINEL sentinels om-redis-master)
+          echo "$existing_sentinels" | awk -f /health/parse_sentinels.awk | tee -a  /opt/bitnami/redis-sentinel/etc/sentinel.conf
+
+          redis-server /opt/bitnami/redis-sentinel/etc/sentinel.conf --sentinel
+        env:
+        - name: ALLOW_EMPTY_PASSWORD
+          value: "yes"
+        - name: REDIS_SENTINEL_PORT
+          value: "26379"
+        ports:
+        - name: redis-sentinel
+          containerPort: 26379
+        livenessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_sentinel.sh 5
+        readinessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_sentinel.sh 5
+        resources:
+          null
+        volumeMounts:
+        - name: health
+          mountPath: /health
+        - name: redis-data
+          mountPath: /data
+          subPath: 
+        - name: config
+          mountPath: /opt/bitnami/redis-sentinel/mounted-etc
+        - name: sentinel-tmp-conf
+          mountPath: /opt/bitnami/redis-sentinel/etc/
+      - name: metrics
+        image: docker.io/bitnami/redis-exporter:1.3.1-debian-9-r9
+        imagePullPolicy: "IfNotPresent"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          if [[ -f '/secrets/redis-password' ]]; then
+           export REDIS_PASSWORD=$(cat /secrets/redis-password)
+          fi
+          redis_exporter
+        args:
+        env:
+        - name: REDIS_ALIAS
+          value: om-redis
+        volumeMounts:
+        ports:
+        - name: metrics
+          containerPort: 9121
+        resources:
+          null
+      volumes:
+      - name: health
+        configMap:
+          name: om-redis-health
+          defaultMode: 0755
+      - name: config
+        configMap:
+          name: om-redis
+      - name: host-sys
+        hostPath:
+          path: /sys
+      - name: redis-tmp-conf
+        emptyDir: {}
+      - name: sentinel-tmp-conf
+        emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+        labels:
+          app: redis
+          release: open-match
+          heritage: Helm
+          component: master
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "8Gi"
+        
+  updateStrategy:
+    type: RollingUpdate
+---
+# Source: open-match/charts/redis/templates/redis-slave-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: om-redis-slave
+  labels:
+    app: redis
+    chart: redis-9.5.0
+    release: open-match
+    heritage: Helm
+spec:
+  replicas: 2
+  serviceName: om-redis-headless
+  selector:
+    matchLabels:
+      app: redis
+      release: open-match
+      role: slave
+  template:
+    metadata:
+      labels:
+        app: redis
+        release: open-match
+        chart: redis-9.5.0
+        role: slave
+      annotations:
+        checksum/health: ceceb14eeeef6908003954eed8a4931d9b1ec157d7a9da73d65845a6d248574b
+        checksum/configmap: 374d8feedb0924ed8a3a143bc3138ab97bbbdfc4b27d452e43c38d95d583a22d
+        checksum/secret: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        prometheus.io/port: "9121"
+        prometheus.io/scrape: "true"
+    spec:      
+      securityContext:
+        fsGroup: 1001
+      serviceAccountName: "open-match-redis-service"
+      containers:
+      - name: om-redis
+        image: docker.io/bitnami/redis:5.0.5-debian-9-r169
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+          runAsUser: 1001
+        command:
+        - /bin/bash
+        - -c
+        - |
+          if [[ -n $REDIS_PASSWORD_FILE ]]; then
+            password_aux=`cat ${REDIS_PASSWORD_FILE}`
+            export REDIS_PASSWORD=$password_aux
+          fi
+          if [[ -n $REDIS_MASTER_PASSWORD_FILE ]]; then
+            password_aux=`cat ${REDIS_MASTER_PASSWORD_FILE}`
+            export REDIS_MASTER_PASSWORD=$password_aux
+          fi
+          if [[ ! -f /opt/bitnami/redis/etc/replica.conf ]];then
+            cp /opt/bitnami/redis/mounted-etc/replica.conf /opt/bitnami/redis/etc/replica.conf
+          fi
+          if [[ ! -f /opt/bitnami/redis/etc/redis.conf ]];then
+            cp /opt/bitnami/redis/mounted-etc/redis.conf /opt/bitnami/redis/etc/redis.conf
+          fi
+          ARGS=("--port" "${REDIS_PORT}")
+          ARGS+=("--slaveof" "${REDIS_MASTER_HOST}" "${REDIS_MASTER_PORT_NUMBER}")
+          ARGS+=("--protected-mode" "no")
+          ARGS+=("--include" "/opt/bitnami/redis/etc/redis.conf")
+          ARGS+=("--include" "/opt/bitnami/redis/etc/replica.conf")
+          /run.sh "${ARGS[@]}"
+        env:
+        - name: REDIS_REPLICATION_MODE
+          value: slave
+        - name: REDIS_MASTER_HOST
+          value: om-redis-master-0.om-redis-headless.open-match.svc.cluster.local
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_MASTER_PORT_NUMBER
+          value: "6379"
+        - name: ALLOW_EMPTY_PASSWORD
+          value: "yes"
+        ports:
+        - name: redis
+          containerPort: 6379
+        livenessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_liveness_local.sh 5
+        readinessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_readiness_local.sh 5
+        resources:
+          null
+        volumeMounts:
+        - name: health
+          mountPath: /health
+        - name: redis-data
+          mountPath: /data
+        - name: config
+          mountPath: /opt/bitnami/redis/mounted-etc
+        - name: redis-tmp-conf
+          mountPath: /opt/bitnami/redis/etc
+      - name: sentinel
+        image: "docker.io/bitnami/redis-sentinel:5.0.5-debian-9-r162"
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+          runAsUser: 1001
+        command:
+        - /bin/bash
+        - -c
+        - |
+          if [[ -n $REDIS_PASSWORD_FILE ]]; then
+            password_aux=`cat ${REDIS_PASSWORD_FILE}`
+            export REDIS_PASSWORD=$password_aux
+          fi
+          if [[ ! -f /opt/bitnami/redis-sentinel/etc/sentinel.conf ]];then
+            cp /opt/bitnami/redis-sentinel/mounted-etc/sentinel.conf /opt/bitnami/redis-sentinel/etc/sentinel.conf
+          fi
+
+          redis-server /opt/bitnami/redis-sentinel/etc/sentinel.conf --sentinel
+        env:
+        - name: ALLOW_EMPTY_PASSWORD
+          value: "yes"
+        - name: REDIS_SENTINEL_PORT
+          value: "26379"
+        ports:
+        - name: redis-sentinel
+          containerPort: 26379
+        livenessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_sentinel.sh 5
+        readinessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_sentinel.sh 5
+        resources:
+          null
+        volumeMounts:
+        - name: health
+          mountPath: /health
+        - name: redis-data
+          mountPath: /data
+          subPath: 
+        - name: config
+          mountPath: /opt/bitnami/redis-sentinel/mounted-etc
+        - name: sentinel-tmp-conf
+          mountPath: /opt/bitnami/redis-sentinel/etc
+      - name: metrics
+        image: docker.io/bitnami/redis-exporter:1.3.1-debian-9-r9
+        imagePullPolicy: "IfNotPresent"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          if [[ -f '/secrets/redis-password' ]]; then
+           export REDIS_PASSWORD=$(cat /secrets/redis-password)
+          fi
+          redis_exporter
+        args:
+        env:
+        - name: REDIS_ALIAS
+          value: om-redis
+        volumeMounts:
+        ports:
+        - name: metrics
+          containerPort: 9121
+        resources:
+          null
+      volumes:
+      - name: health
+        configMap:
+          name: om-redis-health
+          defaultMode: 0755
+      - name: config
+        configMap:
+          name: om-redis
+      - name: host-sys
+        hostPath:
+          path: /sys
+      - name: sentinel-tmp-conf
+        emptyDir: {}
+      - name: redis-tmp-conf
+        emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+        labels:
+          app: redis
+          release: open-match
+          heritage: Helm
+          component: slave
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "8Gi"
+        
+  updateStrategy:
+    type: RollingUpdate
+---
+# Source: open-match/templates/om-configmap-override.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tests/om-test-role-binding.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tests/om-test-role.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tests/om-test-service-account.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tests/om-test.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tls-secret.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
