@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/google/uuid v1.1.2
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/cobra v1.0.0
