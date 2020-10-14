@@ -18,11 +18,7 @@ package cmd
 import (
 	"context"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
-	"github.com/Octops/agones-discover-openmatch/pkg/config"
-	"github.com/Octops/agones-discover-openmatch/pkg/simulators/players"
-	"google.golang.org/grpc"
-	"open-match.dev/open-match/pkg/pb"
-
+	"github.com/Octops/agones-discover-openmatch/pkg/app"
 	"github.com/spf13/cobra"
 )
 
@@ -34,37 +30,13 @@ var (
 // simulateCmd represents the simulate command
 var simulateCmd = &cobra.Command{
 	Use:   "simulate",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Simulate players requesting matches on a interval basis",
+	Long:  `The Player Simulator will request matches on a interval basis for different pool of players.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := runtime.NewLogger(true).WithField("source", "player_simulator")
-		omConfig := config.OpenMatch()
-
-		logger.Infof("connecting to OpenMatch FrontEnd service: %s", omConfig.FrontEnd)
-		conn, err := grpc.Dial(omConfig.FrontEnd, grpc.WithInsecure())
-		if err != nil {
-			logger.Fatalf("Failed to connect to Open Match, got %v", err)
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		runtime.SetupSignal(cancel)
-
-		feService := pb.NewFrontendServiceClient(conn)
-		simulator, err := players.NewTimeIntervalPlayerSimulator(interval, playersPool, feService.CreateTicket)
-		if err != nil {
+		if err := app.RunPlayerSimulator(logger, context.Background(), interval, playersPool); err != nil {
 			logger.Fatal(err)
 		}
-
-		if err := simulator.Run(ctx); err != nil {
-			logger.Fatal(err)
-		}
-
-		defer conn.Close()
 	},
 }
 
@@ -80,5 +52,5 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	simulateCmd.Flags().StringVar(&interval, "interval", "5s", "interval between match requests, 10s, 1m, 5m")
-	simulateCmd.Flags().IntVar(&playersPool, "player-pool", 10, "number of players to create matchmaking requests")
+	simulateCmd.Flags().IntVar(&playersPool, "players-pool", 10, "number of players to create matchmaking requests")
 }
