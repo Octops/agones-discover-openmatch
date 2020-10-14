@@ -32,12 +32,12 @@ type TimeIntervalPlayerSimulator struct {
 	mux              *sync.Mutex
 	logger           *logrus.Entry
 	Interval         time.Duration
-	MaxPlayerPool    int
+	PlayersPool      int
 	RequestMatchFunc RequestMatchFunc
 	Players          []*Player
 }
 
-func NewTimeIntervalPlayerSimulator(interval string, maxPlayerPool int, requestMatchFunc RequestMatchFunc) (*TimeIntervalPlayerSimulator, error) {
+func NewTimeIntervalPlayerSimulator(interval string, playersPool int, requestMatchFunc RequestMatchFunc) (*TimeIntervalPlayerSimulator, error) {
 	duration, err := time.ParseDuration(interval)
 	if err != nil {
 		return nil, err
@@ -47,34 +47,31 @@ func NewTimeIntervalPlayerSimulator(interval string, maxPlayerPool int, requestM
 		mux:              &sync.Mutex{},
 		logger:           runtime.NewLogger(true),
 		Interval:         duration,
-		MaxPlayerPool:    maxPlayerPool,
+		PlayersPool:      playersPool,
 		RequestMatchFunc: requestMatchFunc,
 		Players:          []*Player{},
 	}, nil
 }
 
 func (p *TimeIntervalPlayerSimulator) Run(ctx context.Context) error {
+	p.logger.WithFields(logrus.Fields{
+		"interval":     p.Interval,
+		"players_pool": p.PlayersPool,
+	}).Infof("starting Players Simulator")
 	ctxSimulator, cancel := context.WithCancel(ctx)
 	ticker := time.NewTicker(p.Interval)
 
 	go func() {
-		defer cancel()
+		defer func() {
+			ticker.Stop()
+			cancel()
+		}()
 
 		for {
 			select {
 			case t := <-ticker.C:
-				p.logger.Infof("Create new matchmaking requests at %s", t.String())
-				go func() {
-					players, err := p.CreatePlayers(p.MaxPlayerPool)
-					if err != nil {
-						p.logger.Error(err)
-					}
-
-					err = p.RequestMatchForPlayers(players)
-					if err != nil {
-						p.logger.Error(err)
-					}
-				}()
+				p.logger.Infof("create matchmaking requests for %d Players at %s", p.PlayersPool, t.String())
+				p.CreateMatchmakingRequests()
 			case <-ctxSimulator.Done():
 				return
 			}
@@ -130,6 +127,22 @@ func (p *TimeIntervalPlayerSimulator) AddPlayers(players []*Player) {
 	defer p.mux.Unlock()
 
 	p.Players = append(p.Players, players...)
+}
+
+func (p *TimeIntervalPlayerSimulator) CreateMatchmakingRequests() {
+	go func() {
+		players, err := p.CreatePlayers(p.PlayersPool)
+		if err != nil {
+			p.logger.Error(err)
+		}
+
+		err = p.RequestMatchForPlayers(players)
+		if err != nil {
+			p.logger.Error(err)
+		}
+
+		p.logger.Infof("total Players: %d", len(p.Players))
+	}()
 }
 
 func CreateStringArgs() map[string]string {
