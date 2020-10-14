@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"math/rand"
@@ -19,6 +20,7 @@ type MatchRequest struct {
 }
 
 type Player struct {
+	UID          string
 	MatchRequest *MatchRequest
 }
 
@@ -91,6 +93,7 @@ func (p *TimeIntervalPlayerSimulator) CreatePlayers(count int) ([]*Player, error
 	for i := 0; i < count; i++ {
 
 		players = append(players, &Player{
+			UID: uuid.New().String(),
 			MatchRequest: &MatchRequest{
 				StringArgs: CreateStringArgs(),
 			}})
@@ -115,7 +118,7 @@ func (p *TimeIntervalPlayerSimulator) RequestMatchForPlayers(players []*Player) 
 		}
 
 		player.MatchRequest.Ticket = ticket
-		p.logger.Debugf("ticketID=%s, tags=%s", ticket.GetId(), ticket.SearchFields.StringArgs)
+		p.logger.Debugf("ticketID=%s playerUID=%s tags=%s", ticket.GetId(), player.UID, ticket.SearchFields.StringArgs)
 	}
 
 	p.AddPlayers(players)
@@ -159,15 +162,18 @@ func CreateStringArgs() map[string]string {
 		"Orion",
 	}
 	skillLevels := []int{1, 2, 3, 4, 5}
+	latencies := []int{20, 30, 50, 100}
 
 	region := TagFromStringSlice(regionTags)
 	world := TagFromStringSlice(worldTags)
 	skill := TagFromIntSlice(skillLevels)
+	latency := TagFromIntSlice(latencies)
 
 	return map[string]string{
-		"region": region,
-		"world":  world,
-		"skill":  strconv.Itoa(skill),
+		"region":  region,
+		"world":   world,
+		"skill":   strconv.Itoa(skill),
+		"latency": strconv.Itoa(latency),
 	}
 }
 
