@@ -15,14 +15,14 @@
 # limitations under the License.
 # Include this namespace only when doing `helm template`.
 # helm 2 use namespace to manage its release so `helm install` with this namespace will be broken.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: open-match
-  labels:
-    app: open-match
-    release: open-match
----
+#apiVersion: v1
+#kind: Namespace
+#metadata:
+#  name: open-match
+#  labels:
+#    app: open-match
+#    release: open-match
+#---
 # Source: open-match/templates/podsecuritypolicy.yaml
 # Copyright 2019 Google LLC
 #
@@ -394,7 +394,7 @@ data:
         agentEndpoint: "open-match-jaeger-agent:6831"
         collectorEndpoint: "http://open-match-jaeger-collector:14268/api/traces"
       prometheus:
-        enable: "false"
+        enable: "true"
         endpoint: "/metrics"
         serviceDiscovery: "true"
       stackdriverMetrics:
@@ -607,6 +607,8 @@ metadata:
   annotations:
     chart: open-match-1.0.0
     heritage: Helm
+    prometheus.io/port: "51505"
+    prometheus.io/scrape: "true"
   labels:
     app: open-match
     component: backend
@@ -648,6 +650,8 @@ metadata:
   annotations:
     chart: open-match-1.0.0
     heritage: Helm
+    prometheus.io/port: "51504"
+    prometheus.io/scrape: "true"
   labels:
     app: open-match
     component: frontend
@@ -798,7 +802,7 @@ metadata:
     component: backend
     release: open-match
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: open-match
@@ -882,7 +886,7 @@ metadata:
     component: frontend
     release: open-match
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: open-match
@@ -966,7 +970,7 @@ metadata:
     component: query
     release: open-match
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: open-match
