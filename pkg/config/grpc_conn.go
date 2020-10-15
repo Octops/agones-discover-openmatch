@@ -7,6 +7,7 @@ import (
 
 type OpenMatchConnConfig struct {
 	FrontEnd     string `envconfig:"frontend_addr"`
+	BackEnd      string `envconfig:"backend_addr"`
 	QueryService string `envconfig:"query_service_addr"`
 }
 
