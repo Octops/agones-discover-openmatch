@@ -9,9 +9,9 @@ import (
 )
 
 type FrontEndService struct {
-	logger *logrus.Entry
-	conn   *grpc.ClientConn
-	client pb.FrontendServiceClient
+	logger                *logrus.Entry
+	conn                  *grpc.ClientConn
+	frontendServiceClient pb.FrontendServiceClient
 }
 
 func NewFrontEndService(conn *grpc.ClientConn) (*FrontEndService, error) {
@@ -19,12 +19,12 @@ func NewFrontEndService(conn *grpc.ClientConn) (*FrontEndService, error) {
 
 	fe := pb.NewFrontendServiceClient(conn)
 	return &FrontEndService{
-		logger: logger,
-		conn:   conn,
-		client: fe,
+		logger:                logger,
+		conn:                  conn,
+		frontendServiceClient: fe,
 	}, nil
 }
 
 func (fe *FrontEndService) CreateTicket(ctx context.Context, ticket *pb.CreateTicketRequest, opts ...grpc.CallOption) (*pb.Ticket, error) {
-	return fe.client.CreateTicket(ctx, ticket, opts...)
+	return fe.frontendServiceClient.CreateTicket(ctx, ticket, opts...)
 }
