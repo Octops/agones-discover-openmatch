@@ -6,7 +6,8 @@ import (
 )
 
 type OpenMatchConnConfig struct {
-	FrontEnd string `envconfig:"frontend_endpoint"`
+	FrontEnd     string `envconfig:"frontend_addr"`
+	QueryService string `envconfig:"query_service_addr"`
 }
 
 func OpenMatch() OpenMatchConnConfig {
