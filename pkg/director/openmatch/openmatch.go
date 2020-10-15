@@ -35,8 +35,8 @@ func RunDirector(ctx context.Context, logger *logrus.Entry) error {
 	client := pb.NewBackendServiceClient(conn)
 
 	fetch := FetchMatches(client, MatchFunctionServer{
-		HostName: "0.0.0.0",
-		Port:     8082,
+		HostName: config.OpenMatch().MatchFunctionHost,
+		Port:     config.OpenMatch().MatchFunctionPort,
 	})
 
 	assign := AssignTickets(client)
