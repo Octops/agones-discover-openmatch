@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"open-match.dev/open-match/pkg/pb"
@@ -25,38 +26,55 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 			return nil, err
 		}
 
+		ctx, cancel := context.WithCancel(context.Background())
+		chTickets := make(chan *pb.Ticket)
+
+		go func(pool map[string][]*pb.Ticket) {
+			defer cancel()
+
+			for _, tickets := range pool {
+				for _, ticket := range tickets {
+					t := ticket
+					chTickets <- t
+				}
+			}
+		}(poolTickets)
+
+		var tickets []*pb.Ticket
 		var matches []*pb.Match
-		count := 0
+		var match *pb.Match
+
 		for {
-			insufficientTickets := false
-			matchTickets := []*pb.Ticket{}
-			for pool, tickets := range poolTickets {
-				if len(tickets) < playerCapacity {
-					// This pool is completely drained out. Stop creating matches.
-					insufficientTickets = true
+			select {
+			case t := <-chTickets:
+				if tickets == nil || len(match.Tickets) == playerCapacity {
+					tickets = []*pb.Ticket{}
+					tickets = append(tickets, t)
+					id := fmt.Sprintf("profile-%v-time-%v", profile.GetName(), time.Now().Format(time.RFC3339))
+					matches = append(matches, CreateMatchForTickets(id, profile.GetName(), tickets...))
+					match = matches[len(matches)-1]
 					break
 				}
 
-				// Remove the Tickets from this pool and add to the match proposal.
-				matchTickets = append(matchTickets, tickets[0:playerCapacity]...)
-				poolTickets[pool] = tickets[playerCapacity:]
+				if len(match.Tickets) < playerCapacity {
+					match.Tickets = append(match.Tickets, t)
+					break
+				}
+			case <-ctx.Done():
+				timeout, _ := context.WithTimeout(context.Background(), 15*time.Millisecond)
+				<-timeout.Done()
+				return matches, nil
 			}
-
-			if insufficientTickets {
-				break
-			}
-
-			matches = append(matches, &pb.Match{
-				MatchId:       fmt.Sprintf("profile-%v-time-%v-%v", profile.GetName(), time.Now().Format(time.RFC3339), count),
-				MatchProfile:  profile.GetName(),
-				MatchFunction: MATCFUNC_NAME,
-				Tickets:       matchTickets,
-			})
-
-			count++
 		}
+	}
+}
 
-		return matches, nil
+func CreateMatchForTickets(matchID, profileName string, tickets ...*pb.Ticket) *pb.Match {
+	return &pb.Match{
+		MatchId:       matchID,
+		MatchProfile:  profileName,
+		MatchFunction: MATCFUNC_NAME,
+		Tickets:       tickets,
 	}
 }
 
