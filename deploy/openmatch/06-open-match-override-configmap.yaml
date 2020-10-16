@@ -1,0 +1,49 @@
+---
+# Source: open-match/templates/om-configmap-override.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: om-configmap-override
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: config
+    release: open-match
+data:
+  matchmaker_config_override.yaml: |-
+    # Length of time between first fetch matches call, and when no further fetch
+    # matches calls will join the current evaluation/synchronization cycle, 
+    # instead waiting for the next cycle.
+    registrationInterval:  250ms
+    # Length of time after match function as started before it will be canceled,
+    # and evaluator call input is EOF.
+    proposalCollectionInterval: 20s
+    # Time after a ticket has been returned from fetch matches (marked as pending)
+    # before it automatically becomes active again and will be returned by query
+    # calls.
+    pendingReleaseTimeout: 1m
+    # Time after a ticket has been assigned before it is automatically delted.
+    assignedDeleteTimeout: 10m
+    # Maximum number of tickets to return on a single QueryTicketsResponse.
+    queryPageSize: 10000
+    api:
+      evaluator:
+        hostname: "om-evaluator"
+        grpcport: "50508"
+        httpport: "51508"

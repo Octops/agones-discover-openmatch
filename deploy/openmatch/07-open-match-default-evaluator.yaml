@@ -1,0 +1,452 @@
+---
+# Source: open-match/charts/open-match-customize/templates/evaluator.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Ugly workaround to split out MMF and evaluator
+# TODO: Reconsider helm chart structure and move things out after v0.8 release
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-evaluator
+  namespace: open-match
+  annotations:
+    chart: open-match-customize-0.0.0-dev
+    heritage: Helm
+  labels:
+    app: open-match-customize
+    component: evaluator
+    release: open-match
+spec:
+  selector:
+    app: open-match-customize
+    component: evaluator
+    release: open-match
+  clusterIP: None
+  type: ClusterIP
+  ports:
+  - name: grpc
+    protocol: TCP
+    port: 50508
+  - name: http
+    protocol: TCP
+    port: 51508
+---
+# Source: open-match/templates/swaggerui.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-swaggerui
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: swaggerui
+    release: open-match
+spec:
+  selector:
+    app: open-match
+    component: swaggerui
+  type: ClusterIP
+  ports:
+  - name: http
+    protocol: TCP
+    port: 51500
+---
+# Source: open-match/charts/open-match-customize/templates/evaluator.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: om-evaluator
+  namespace: open-match
+  labels:
+    app: open-match-customize
+    component: evaluator
+    release: open-match
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open-match-customize
+      component: evaluator
+  template:
+    metadata:
+      namespace: open-match
+      annotations:
+        
+        chart: open-match-customize-0.0.0-dev
+        heritage: Helm
+      labels:
+        app: open-match-customize
+        component: evaluator
+        release: open-match
+    spec:
+      volumes:
+        
+        - name: om-config-volume-override
+          configMap:
+            name: om-configmap-override
+        - name: om-config-volume-default
+          configMap:
+            name: om-configmap-default
+        
+      serviceAccountName: open-match-unprivileged-service
+      containers:
+      - name: om-evaluator
+        volumeMounts:
+          
+          - name: om-config-volume-override
+            mountPath: /app/config/override
+          - name: om-config-volume-default
+            mountPath: /app/config/default
+          
+        image: "gcr.io/open-match-public-images/openmatch-default-evaluator:1.0.0"
+        ports:
+        - name: grpc
+          containerPort: 50508
+        - name: http
+          containerPort: 51508
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+---
+# Source: open-match/templates/swaggerui.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: om-swaggerui
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: swaggerui
+    release: open-match
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open-match
+      component: swaggerui
+  template:
+    metadata:
+      namespace: open-match
+      annotations:
+        chart: open-match-1.0.0
+        heritage: Helm
+      labels:
+        app: open-match
+        component: swaggerui
+        release: open-match
+    spec:
+      
+      volumes:
+        
+        - name: om-config-volume-default
+          configMap:
+            name: om-configmap-default
+        - name: om-config-volume-override
+          configMap:
+            name: om-configmap-override
+        
+      serviceAccountName: open-match-unprivileged-service
+      containers:
+      - name: om-swaggerui
+        volumeMounts:
+          
+          - name: om-config-volume-default
+            mountPath: /app/config/default
+          - name: om-config-volume-override
+            mountPath: /app/config/override
+          
+        image: "gcr.io/open-match-public-images/openmatch-swaggerui:1.0.0"
+        ports:
+        - name: http
+          containerPort: 51500
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        livenessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz
+            port: 51500
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /healthz?readiness=true
+            port: 51500
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 2
+---
+# Source: open-match/charts/open-match-customize/templates/evaluator.yaml
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: om-evaluator
+  namespace: open-match
+  annotations:
+    chart: open-match-customize-0.0.0-dev
+    heritage: Helm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: om-evaluator
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+---
+# Source: open-match/charts/open-match-customize/templates/matchfunctions.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Ugly workaround to split out MMF and evaluator
+# TODO: Reconsider helm chart structure and move things out after v0.8 release
+---
+# Source: open-match/templates/backend.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/frontend.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/om-configmap-default.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/om-configmap-override.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/podsecuritypolicy.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/query.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/service-account.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/synchronizer.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tests/om-test-role-binding.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tests/om-test-role.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tests/om-test-service-account.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tests/om-test.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+# Source: open-match/templates/tls-secret.yaml
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
