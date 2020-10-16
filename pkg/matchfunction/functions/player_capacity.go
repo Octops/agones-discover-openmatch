@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Octops/agones-discover-openmatch/internal/runtime"
+	"github.com/google/uuid"
 	"open-match.dev/open-match/pkg/pb"
 	"time"
 )
@@ -26,11 +28,25 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 			return nil, err
 		}
 
+		//t := []*pb.Ticket{}
+		//for _, tickets := range poolTickets {
+		//	for _, ticket := range tickets {
+		//		t = append(t, ticket)
+		//	}
+		//}
+		//
+		//id := fmt.Sprintf("profile-%v-time-%v", profile.GetName(), uuid.New().String())
+		//matches := append([]*pb.Match{}, CreateMatchForTickets(id, profile.GetName(), t...))
+		//runtime.Logger().Debugf("total matches for profile %s tickets %d: %d", profile.GetName(), len(matches), len(t))
+		//return matches, nil
+
 		ctx, cancel := context.WithCancel(context.Background())
 		chTickets := make(chan *pb.Ticket)
 
 		go func(pool map[string][]*pb.Ticket) {
-			defer cancel()
+			defer func() {
+				cancel()
+			}()
 
 			for _, tickets := range pool {
 				for _, ticket := range tickets {
@@ -47,10 +63,11 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 		for {
 			select {
 			case t := <-chTickets:
+				runtime.Logger().Debugf("creating match for ticket %s", t.Id)
 				if tickets == nil || len(match.Tickets) == playerCapacity {
 					tickets = []*pb.Ticket{}
 					tickets = append(tickets, t)
-					id := fmt.Sprintf("profile-%v-time-%v", profile.GetName(), time.Now().Format(time.RFC3339))
+					id := fmt.Sprintf("profile-%v-%v", profile.GetName(), uuid.New().String())
 					matches = append(matches, CreateMatchForTickets(id, profile.GetName(), tickets...))
 					match = matches[len(matches)-1]
 					break
@@ -61,6 +78,7 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 					break
 				}
 			case <-ctx.Done():
+				runtime.Logger().Debugf("total matches for profile %s: %d", profile.GetName(), len(matches))
 				timeout, _ := context.WithTimeout(context.Background(), 15*time.Millisecond)
 				<-timeout.Done()
 				return matches, nil

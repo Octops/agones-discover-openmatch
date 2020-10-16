@@ -107,6 +107,7 @@ func (p *TimeIntervalPlayerSimulator) RequestMatchForPlayers(players []*Player) 
 		req := &pb.CreateTicketRequest{
 			Ticket: &pb.Ticket{
 				SearchFields: &pb.SearchFields{
+					// TODO: Split player request across search fields. Latency must be a DoubleRange
 					StringArgs: player.MatchRequest.StringArgs,
 				},
 			},
