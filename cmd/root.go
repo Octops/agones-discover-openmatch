@@ -64,7 +64,7 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "output verbose logs")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "output verbose logs")
 }
 
 // initConfig reads in config file and ENV variables if set.

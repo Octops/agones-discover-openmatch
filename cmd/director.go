@@ -38,7 +38,8 @@ to quickly create a Cobra application.`,
 		logger := runtime.NewLogger(verbose)
 		ctx := context.Background()
 
-		if err := openmatch.RunDirector(ctx, logger); err != nil {
+		logger.Info("starting Open Match Director")
+		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure); err != nil {
 			logger.Fatal(errors.Wrap(err, "failed to start the Director"))
 		}
 	},

@@ -25,10 +25,12 @@ type FetchResponse struct {
 	Err     error
 }
 
-func RunDirector(ctx context.Context, logger *logrus.Entry) error {
-	conn, err := grpc.Dial(config.OpenMatch().BackEnd, grpc.WithInsecure())
+type ConnFunc func() (*grpc.ClientConn, error)
+
+func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc) error {
+	conn, err := dial()
 	if err != nil {
-		logger.Error(errors.Wrap(err, "failed to connect to Open Match Backend"))
+		return errors.Wrap(err, "failed to connect to Open Match Backend")
 	}
 
 	defer conn.Close()
