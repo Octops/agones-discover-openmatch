@@ -18,15 +18,15 @@ package cmd
 import (
 	"context"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
-	"github.com/Octops/agones-discover-openmatch/pkg/director/openmatch"
+	"github.com/Octops/agones-discover-openmatch/pkg/config"
+	"github.com/Octops/agones-discover-openmatch/pkg/matchfunction"
 	"github.com/pkg/errors"
-
 	"github.com/spf13/cobra"
 )
 
-// directorCmd represents the director command
-var directorCmd = &cobra.Command{
-	Use:   "director",
+// functionCmd represents the function command
+var functionCmd = &cobra.Command{
+	Use:   "function",
 	Short: "A brief description of your command",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
@@ -36,26 +36,30 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := runtime.NewLogger(verbose)
+		mmfServer, err := matchfunction.NewServer()
+		if err != nil {
+			logger.Fatal(errors.Wrap(err, "failed to create match function server"))
+		}
+
 		ctx, cancel := context.WithCancel(context.Background())
 		runtime.SetupSignal(cancel)
 
-		logger.Info("starting Open Match Director")
-		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure); err != nil {
-			logger.Fatal(errors.Wrap(err, "failed to start the Director"))
+		if err := mmfServer.Serve(ctx, config.OpenMatch().MatchFunctionPort); err != nil {
+			logger.Fatal(errors.Wrap(err, "failed to start match function server"))
 		}
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(directorCmd)
+	rootCmd.AddCommand(functionCmd)
 
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	// directorCmd.PersistentFlags().String("foo", "", "A help for foo")
+	// functionCmd.PersistentFlags().String("foo", "", "A help for foo")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// directorCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// functionCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
