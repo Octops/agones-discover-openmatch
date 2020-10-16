@@ -110,15 +110,22 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 		worlds := []string{"Dune", "Nova", "Pandora", "Orion"}
 		for _, world := range worlds {
 			profiles = append(profiles, &pb.MatchProfile{
-				Name: "mode_based_profile",
+				Name: "mode_based_profile_" + world,
 				Pools: []*pb.Pool{
 					{
 						Name: "pool_mode_" + world,
-						TagPresentFilters: []*pb.TagPresentFilter{
+						StringEqualsFilters: []*pb.StringEqualsFilter{
 							{
-								Tag: world,
+								StringArg: "world",
+								Value:     world,
 							},
 						},
+						// TODO: Check cases for TagPresentFilter
+						//TagPresentFilters: []*pb.TagPresentFilter{
+						//	{
+						//		Tag: world,
+						//	},
+						//},
 					},
 				},
 			})
