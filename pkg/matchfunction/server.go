@@ -1,6 +1,7 @@
 package matchfunction
 
 import (
+	"context"
 	"fmt"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
 	"github.com/Octops/agones-discover-openmatch/pkg/config"
@@ -49,11 +50,11 @@ func (s *Server) RegisterMatchFunction(factory func(client pb.QueryServiceClient
 	pb.RegisterMatchFunctionServer(s.grpcServer, matchFunctionService)
 }
 
-func (s *Server) Serve(port int) {
+func (s *Server) Serve(ctx context.Context, port int32) error {
 	defer s.Finalizer()
 
 	if err := s.DialQueryService(config.OpenMatch().QueryService); err != nil {
-		s.logger.Fatal(err)
+		return errors.Wrap(err, "failed to dial OpenMatch Query Service")
 	}
 
 	// TODO: PlayerCapacity 10 is a random number but must match with the GS Status.Players.Capacity
@@ -61,18 +62,30 @@ func (s *Server) Serve(port int) {
 
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		s.logger.Fatalf("TCP net listener initialization failed for port %d: %s", port, err.Error())
+		return errors.Wrapf(err, "TCP net listener initialization failed for port %d", port)
 	}
 
+	defer ln.Close()
+
+	ctxServer, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	s.logger.Infof("TCP net listener initialized for port %d", port)
-	err = s.grpcServer.Serve(ln)
-	if err != nil {
-		s.logger.Fatalf("gRPC serve failed: %s", err.Error())
-	}
+	go func() {
+		if err := s.grpcServer.Serve(ln); err != nil {
+			s.logger.Fatal(errors.Wrap(err, "gRPC serve failed"))
+			cancel()
+		}
+	}()
+
+	<-ctxServer.Done()
+	return nil
 }
 
 func (s *Server) Finalizer() {
+	s.logger.Info("stopping match function server")
 	if s.conn != nil {
 		s.conn.Close()
 	}
+	s.grpcServer.Stop()
 }

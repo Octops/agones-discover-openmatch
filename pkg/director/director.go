@@ -19,7 +19,7 @@ type DirectorFunc func(ctx context.Context, profilesFunc GenerateProfilesFunc, m
 
 func Run() DirectorFunc {
 	return func(ctx context.Context, profilesFunc GenerateProfilesFunc, matchesFunc FetchMatchesFunc, assignFunc AssignFunc) error {
-		logger := runtime.Logger()
+		logger := runtime.Logger().WithField("source", "director")
 		profiles, err := profilesFunc()
 		if err != nil {
 			return errors.Wrap(err, "failed to generate profiles")
@@ -47,8 +47,9 @@ func Run() DirectorFunc {
 				}
 				wg.Wait()
 			case <-ctx.Done():
+				logger.Info("stopping director")
 				ticker.Stop()
-				timeout, cancel := context.WithTimeout(ctx, time.Millisecond*30)
+				timeout, cancel := context.WithTimeout(ctx, time.Second)
 				defer cancel()
 
 				<-timeout.Done()

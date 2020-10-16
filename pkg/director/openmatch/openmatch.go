@@ -59,7 +59,6 @@ func FetchMatches(client pb.BackendServiceClient, matchFunctionServer MatchFunct
 		defer cancel()
 
 		fetchResponse := FetchResponse{}
-
 		go func(p *pb.MatchProfile) {
 			defer cancel()
 			if fetchResponse.Matches, fetchResponse.Err = fetch(ctxFetch, client, profile, matchFunctionServer); fetchResponse.Err != nil {
@@ -67,10 +66,8 @@ func FetchMatches(client pb.BackendServiceClient, matchFunctionServer MatchFunct
 			}
 		}(profile)
 
-		select {
-		case <-ctxFetch.Done():
-			return fetchResponse.Matches, fetchResponse.Err
-		}
+		<-ctxFetch.Done()
+		return fetchResponse.Matches, fetchResponse.Err
 	}
 }
 
@@ -141,9 +138,10 @@ func fetch(ctx context.Context, client pb.BackendServiceClient, profile *pb.Matc
 		Profile: profile,
 	}
 
+	runtime.Logger().Debugf("fetching matches for profile %s", profile.GetName())
 	stream, err := client.FetchMatches(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to fetch matches")
 	}
 
 	var result []*pb.Match
@@ -154,7 +152,7 @@ func fetch(ctx context.Context, client pb.BackendServiceClient, profile *pb.Matc
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to receive matches from stream")
 		}
 
 		result = append(result, resp.GetMatch())
