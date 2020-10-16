@@ -39,7 +39,6 @@ func (s *MatchFunctionService) Run(req *pb.RunRequest, stream pb.MatchFunction_R
 	}
 
 	for _, proposal := range proposals {
-		s.logger.Debugf("sending proposal to stream %s", proposal.MatchId)
 		if err := stream.Send(&pb.RunResponse{Proposal: proposal}); err != nil {
 			err := errors.Wrap(err, "failed to stream proposals to Open Match")
 			s.logger.Error(err)
@@ -47,6 +46,5 @@ func (s *MatchFunctionService) Run(req *pb.RunRequest, stream pb.MatchFunction_R
 		}
 	}
 
-	s.logger.Debugf("proposals sent %d", len(proposals))
 	return nil
 }

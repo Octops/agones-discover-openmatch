@@ -67,7 +67,7 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 				if tickets == nil || len(match.Tickets) == playerCapacity {
 					tickets = []*pb.Ticket{}
 					tickets = append(tickets, t)
-					id := fmt.Sprintf("profile-%v-time-%v", profile.GetName(), uuid.New().String())
+					id := fmt.Sprintf("profile-%v-%v", profile.GetName(), uuid.New().String())
 					matches = append(matches, CreateMatchForTickets(id, profile.GetName(), tickets...))
 					match = matches[len(matches)-1]
 					break

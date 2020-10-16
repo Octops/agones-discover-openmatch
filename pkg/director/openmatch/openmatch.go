@@ -97,7 +97,7 @@ func AssignTickets(client pb.BackendServiceClient) director.AssignFunc {
 				return fmt.Errorf("AssignTickets failed for match %v, got %w", match.GetMatchId(), err)
 			}
 
-			logger.Debugf("Assigned server %v to match %v", conn, match.GetMatchId())
+			logger.Debugf("assigned server %v to match %v", conn, match.GetMatchId())
 		}
 
 		return nil
@@ -110,7 +110,7 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 		worlds := []string{"Dune", "Nova", "Pandora", "Orion"}
 		for _, world := range worlds {
 			profiles = append(profiles, &pb.MatchProfile{
-				Name: "mode_based_profile_" + world,
+				Name: "world_based_profile_" + world,
 				Pools: []*pb.Pool{
 					{
 						Name: "pool_mode_" + world,
