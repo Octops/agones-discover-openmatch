@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
+	"github.com/Octops/agones-discover-openmatch/pkg/allocator"
 	"github.com/Octops/agones-discover-openmatch/pkg/director/openmatch"
 	"github.com/pkg/errors"
 
@@ -44,7 +45,9 @@ to quickly create a Cobra application.`,
 		runtime.SetupSignal(cancel)
 
 		logger.Info("starting Open Match Director")
-		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure, intervalDirector); err != nil {
+		// TODO: Refactor using Flags and Registry
+		agonesAllocator := allocator.NewAgonesAllocatorService(&allocator.FakeAllocatorServiceClient{}, &allocator.AgonesDiscoverClient{})
+		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure, intervalDirector, agonesAllocator); err != nil {
 			logger.Fatal(errors.Wrap(err, "failed to start the Director"))
 		}
 	},
