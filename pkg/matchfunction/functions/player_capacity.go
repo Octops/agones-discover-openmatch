@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
-	"github.com/google/uuid"
 	"open-match.dev/open-match/pkg/pb"
 	"time"
 )
@@ -67,7 +66,7 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 				if tickets == nil || len(match.Tickets) == playerCapacity {
 					tickets = []*pb.Ticket{}
 					tickets = append(tickets, t)
-					id := fmt.Sprintf("profile-%v-%v", profile.GetName(), uuid.New().String())
+					id := fmt.Sprintf("profile-%v-%v", profile.GetName(), time.Now().UnixNano())
 					matches = append(matches, CreateMatchForTickets(id, profile.GetName(), tickets...))
 					match = matches[len(matches)-1]
 					break
@@ -79,7 +78,7 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 				}
 			case <-ctx.Done():
 				runtime.Logger().Debugf("total matches for profile %s: %d", profile.GetName(), len(matches))
-				timeout, _ := context.WithTimeout(context.Background(), 15*time.Millisecond)
+				timeout, _ := context.WithTimeout(context.Background(), time.Second)
 				<-timeout.Done()
 				return matches, nil
 			}

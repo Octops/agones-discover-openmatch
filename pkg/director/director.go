@@ -17,15 +17,22 @@ type AssignFunc func(ctx context.Context, matches []*pb.Match) error
 
 type DirectorFunc func(ctx context.Context, profilesFunc GenerateProfilesFunc, matchesFunc FetchMatchesFunc, assignFunc AssignFunc) error
 
-func Run() DirectorFunc {
+func Run(interval string) DirectorFunc {
 	return func(ctx context.Context, profilesFunc GenerateProfilesFunc, matchesFunc FetchMatchesFunc, assignFunc AssignFunc) error {
 		logger := runtime.Logger().WithField("source", "director")
+
+		duration, err := time.ParseDuration(interval)
+		if err != nil {
+			return errors.Wrapf(err, "director interval format is wrong, it should be a duration string like 100ms, 1s, 5m")
+		}
+		logger.Infof("match fetching interval set to %s", interval)
+
 		profiles, err := profilesFunc()
 		if err != nil {
 			return errors.Wrap(err, "failed to generate profiles")
 		}
 
-		ticker := time.NewTicker(time.Second * 5)
+		ticker := time.NewTicker(duration)
 		for {
 			select {
 			case <-ticker.C:

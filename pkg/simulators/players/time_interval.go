@@ -69,6 +69,9 @@ func (p *TimeIntervalPlayerSimulator) Run(ctx context.Context) error {
 			cancel()
 		}()
 
+		//Create fist batch before ticker. Useful if longer intervals are set
+		p.CreateMatchmakingRequests()
+
 		for {
 			select {
 			case t := <-ticker.C:
