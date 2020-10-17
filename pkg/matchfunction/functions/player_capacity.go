@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
+	"github.com/sirupsen/logrus"
 	"open-match.dev/open-match/pkg/pb"
 	"time"
 )
@@ -39,6 +40,11 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 		//runtime.Logger().Debugf("total matches for profile %s tickets %d: %d", profile.GetName(), len(matches), len(t))
 		//return matches, nil
 
+		logger := runtime.Logger().WithFields(logrus.Fields{
+			"component": "match_function",
+			"command":   "matchmaker",
+		})
+
 		ctx, cancel := context.WithCancel(context.Background())
 		chTickets := make(chan *pb.Ticket)
 
@@ -62,7 +68,7 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 		for {
 			select {
 			case t := <-chTickets:
-				runtime.Logger().Debugf("creating match for ticket %s", t.Id)
+				logger.Debugf("creating match for ticket %s", t.Id)
 				if tickets == nil || len(match.Tickets) == playerCapacity {
 					tickets = []*pb.Ticket{}
 					tickets = append(tickets, t)
@@ -77,7 +83,7 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 					break
 				}
 			case <-ctx.Done():
-				runtime.Logger().Debugf("total matches for profile %s: %d", profile.GetName(), len(matches))
+				logger.Debugf("total matches for profile %s: %d", profile.GetName(), len(matches))
 				return matches, nil
 			}
 		}

@@ -19,7 +19,7 @@ type DirectorFunc func(ctx context.Context, profilesFunc GenerateProfilesFunc, m
 
 func Run(interval string) DirectorFunc {
 	return func(ctx context.Context, profilesFunc GenerateProfilesFunc, matchesFunc FetchMatchesFunc, assignFunc AssignFunc) error {
-		logger := runtime.Logger().WithField("source", "director")
+		logger := runtime.Logger().WithField("component", "director")
 
 		duration, err := validateInterval(interval)
 		if err != nil {

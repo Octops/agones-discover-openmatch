@@ -45,7 +45,7 @@ func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc, inter
 	profiles := GenerateProfiles()
 
 	if err := director.Run(interval)(ctx, profiles, fetch, assign); err != nil {
-		logger.Error(errors.Wrap(err, ""))
+		logger.Error(errors.Wrap(err, "error running director"))
 		return err
 	}
 
@@ -54,7 +54,10 @@ func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc, inter
 
 func FetchMatches(client pb.BackendServiceClient, matchFunctionServer MatchFunctionServer) director.FetchMatchesFunc {
 	return func(ctx context.Context, profile *pb.MatchProfile) ([]*pb.Match, error) {
-		logger := runtime.Logger()
+		logger := runtime.Logger().WithFields(logrus.Fields{
+			"component": "director",
+			"command":   "fetch",
+		})
 		ctxFetch, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 
@@ -73,7 +76,10 @@ func FetchMatches(client pb.BackendServiceClient, matchFunctionServer MatchFunct
 
 func AssignTickets(client pb.BackendServiceClient) director.AssignFunc {
 	return func(ctx context.Context, matches []*pb.Match) error {
-		logger := runtime.Logger()
+		logger := runtime.Logger().WithFields(logrus.Fields{
+			"component": "director",
+			"command":   "assign",
+		})
 		for _, match := range matches {
 			ticketIDs := []string{}
 			for _, t := range match.GetTickets() {
@@ -146,7 +152,12 @@ func fetch(ctx context.Context, client pb.BackendServiceClient, profile *pb.Matc
 		Profile: profile,
 	}
 
-	runtime.Logger().Debugf("fetching matches for profile %s", profile.GetName())
+	logger := runtime.Logger().WithFields(logrus.Fields{
+		"component": "director",
+		"command":   "fetch",
+	})
+
+	logger.Debugf("fetching matches for profile %s", profile.GetName())
 	stream, err := client.FetchMatches(ctx, req)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to fetch matches")
