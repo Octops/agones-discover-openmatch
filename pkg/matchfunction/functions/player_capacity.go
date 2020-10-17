@@ -78,8 +78,6 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 				}
 			case <-ctx.Done():
 				runtime.Logger().Debugf("total matches for profile %s: %d", profile.GetName(), len(matches))
-				timeout, _ := context.WithTimeout(context.Background(), time.Second)
-				<-timeout.Done()
 				return matches, nil
 			}
 		}
