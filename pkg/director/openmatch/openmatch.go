@@ -81,7 +81,8 @@ func AssignTickets(client pb.BackendServiceClient) director.AssignFunc {
 			}
 
 			// TODO: This should be extracted to a proper service that will consume from Agones Discover
-			conn := fmt.Sprintf("%d.%d.%d.%d:2222", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256))
+			port := rand.Intn(8000-7000) + 7000
+			conn := fmt.Sprintf("%d.%d.%d.%d:%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256), port)
 			req := &pb.AssignTicketsRequest{
 				Assignments: []*pb.AssignmentGroup{
 					{
