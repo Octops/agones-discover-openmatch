@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"net"
 	"open-match.dev/open-match/pkg/pb"
+	"time"
 )
 
 type MatchFunction interface {
@@ -34,8 +35,11 @@ func NewServer() (*Server, error) {
 }
 
 func (s *Server) DialQueryService(addr string) error {
-	s.logger.Infof("opening connection with OpenMatch query service")
-	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock())
+	s.logger.Infof("opening connection to OpenMatch query service on %s", addr)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, addr, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		return errors.Wrapf(err, "error dialing QueryService on %s", addr)
 	}
