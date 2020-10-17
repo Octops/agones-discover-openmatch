@@ -21,11 +21,11 @@ func Run(interval string) DirectorFunc {
 	return func(ctx context.Context, profilesFunc GenerateProfilesFunc, matchesFunc FetchMatchesFunc, assignFunc AssignFunc) error {
 		logger := runtime.Logger().WithField("source", "director")
 
-		duration, err := time.ParseDuration(interval)
+		duration, err := validateInterval(interval)
 		if err != nil {
-			return errors.Wrapf(err, "director interval format is wrong, it should be a duration string like 100ms, 1s, 5m")
+			return err
 		}
-		logger.Infof("match fetching interval set to %s", interval)
+		logger.Infof("fetching matches interval set to %s", interval)
 
 		profiles, err := profilesFunc()
 		if err != nil {
@@ -64,4 +64,12 @@ func Run(interval string) DirectorFunc {
 			}
 		}
 	}
+}
+
+func validateInterval(interval string) (time.Duration, error) {
+	duration, err := time.ParseDuration(interval)
+	if err != nil {
+		return 0, errors.Wrapf(err, "director interval format is wrong, it should be a duration string like 100ms, 1s, 5m")
+	}
+	return duration, err
 }
