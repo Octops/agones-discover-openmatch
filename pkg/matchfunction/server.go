@@ -34,7 +34,8 @@ func NewServer() (*Server, error) {
 }
 
 func (s *Server) DialQueryService(addr string) error {
-	conn, err := grpc.Dial(addr, grpc.WithInsecure())
+	s.logger.Infof("opening connection with OpenMatch query service")
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		return errors.Wrapf(err, "error dialing QueryService on %s", addr)
 	}

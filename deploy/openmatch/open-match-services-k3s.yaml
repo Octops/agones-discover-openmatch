@@ -1,0 +1,84 @@
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-backend-nodeport
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: backend
+    release: open-match
+spec:
+  selector:
+    app: open-match
+    component: backend
+    release: open-match
+  type: NodePort
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: 50505
+      nodePort: 30505
+    - name: http
+      protocol: TCP
+      port: 51505
+      nodePort: 31505
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-frontend-nodeport
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: frontend
+    release: open-match
+spec:
+  selector:
+    app: open-match
+    component: frontend
+    release: open-match
+  type: NodePort
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: 50504
+      nodePort: 30504
+    - name: http
+      protocol: TCP
+      port: 51504
+      nodePort: 31504
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: om-query-nodeport
+  namespace: open-match
+  annotations:
+    chart: open-match-1.0.0
+    heritage: Helm
+  labels:
+    app: open-match
+    component: query
+    release: open-match
+spec:
+  selector:
+    app: open-match
+    component: query
+    release: open-match
+  type: NodePort
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: 50503
+      nodePort: 30503
+    - name: http
+      protocol: TCP
+      port: 51503
+      nodePort: 31503

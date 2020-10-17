@@ -24,6 +24,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	intervalDirector string
+)
+
 // directorCmd represents the director command
 var directorCmd = &cobra.Command{
 	Use:   "director",
@@ -40,7 +44,7 @@ to quickly create a Cobra application.`,
 		runtime.SetupSignal(cancel)
 
 		logger.Info("starting Open Match Director")
-		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure); err != nil {
+		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure, intervalDirector); err != nil {
 			logger.Fatal(errors.Wrap(err, "failed to start the Director"))
 		}
 	},
@@ -57,5 +61,5 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// directorCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	directorCmd.Flags().StringVarP(&intervalDirector, "interval", "t", "5s", "interval the Director will fetch matches")
 }
