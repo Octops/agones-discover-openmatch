@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
 	"open-match.dev/open-match/pkg/pb"
 	"time"
@@ -90,12 +91,23 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 	}
 }
 
+/*
+foo := &pb.Foo{...}
+     any, err := ptypes.MarshalAny(foo)
+     ...
+     foo := &pb.Foo{}
+     if err := ptypes.UnmarshalAny(any, foo); err != nil {
+       ...
+     }
+*/
+
 func CreateMatchForTickets(matchID, profileName string, tickets ...*pb.Ticket) *pb.Match {
 	return &pb.Match{
 		MatchId:       matchID,
 		MatchProfile:  profileName,
 		MatchFunction: MATCFUNC_NAME,
 		Tickets:       tickets,
+		Extensions:    map[string]*any.Any{},
 	}
 }
 

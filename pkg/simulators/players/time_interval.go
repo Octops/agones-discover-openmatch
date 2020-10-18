@@ -130,7 +130,7 @@ func (p *TimeIntervalPlayerSimulator) RequestMatchForPlayers(players []*Player) 
 		}
 
 		player.MatchRequest.Ticket = ticket
-		p.logger.Debugf("ticketID=%s playerUID=%s tags=%s", ticket.GetId(), player.UID, ticket.SearchFields.StringArgs)
+		p.logger.Debugf("ticketID=%s playerUID=%s stringArgs=%s doubleArgs=%v", ticket.GetId(), player.UID, ticket.SearchFields.StringArgs, ticket.SearchFields.DoubleArgs)
 	}
 
 	p.AddPlayers(players)
@@ -162,7 +162,7 @@ func (p *TimeIntervalPlayerSimulator) CreateMatchmakingRequests() {
 
 func CreateDoubleArgs() map[string]float64 {
 	skillLevels := []float64{10, 100, 1000}
-	latencies := []float64{25, 50, 100}
+	latencies := []float64{25, 50, 75, 100}
 	skill := TagFromFloatSlice(skillLevels)
 	latency := TagFromFloatSlice(latencies)
 

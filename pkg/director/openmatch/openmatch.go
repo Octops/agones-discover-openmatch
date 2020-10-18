@@ -2,6 +2,7 @@ package openmatch
 
 import (
 	"context"
+	"fmt"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
 	"github.com/Octops/agones-discover-openmatch/pkg/allocator"
 	"github.com/Octops/agones-discover-openmatch/pkg/config"
@@ -117,6 +118,7 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 	}
 }
 
+// GenerateProfiles generates profiles for every world assigning region, latency and skill randomly
 func GenerateProfiles() director.GenerateProfilesFunc {
 	return func() ([]*pb.MatchProfile, error) {
 		var profiles []*pb.MatchProfile
@@ -125,9 +127,9 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 		regions := []string{"us-east-1", "us-east-2", "us-west-1", "us-west-2"}
 
 		skillLevels := []*pb.DoubleRangeFilter{
-			{Min: 0, Max: 10},
-			{Min: 10, Max: 100},
-			{Min: 100, Max: 1000},
+			{DoubleArg: "skill", Min: 0, Max: 10},
+			{DoubleArg: "skill", Min: 10, Max: 100},
+			{DoubleArg: "skill", Min: 100, Max: 1000},
 		}
 
 		latencies := []*pb.DoubleRangeFilter{
@@ -138,35 +140,34 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 		}
 
 		for _, world := range worlds {
-			for _, region := range regions {
-				profiles = append(profiles, &pb.MatchProfile{
-					Name: "world_based_profile_" + world,
-					Pools: []*pb.Pool{
-						{
-							Name: "pool_mode_" + world,
-							TagPresentFilters: []*pb.TagPresentFilter{
-								{
-									Tag: "mode.session",
-								},
-							},
-							StringEqualsFilters: []*pb.StringEqualsFilter{
-								{
-									StringArg: "world",
-									Value:     world,
-								},
-								{
-									StringArg: "region",
-									Value:     region,
-								},
-							},
-							DoubleRangeFilters: []*pb.DoubleRangeFilter{
-								DoubleRangeFilterFromSlice(skillLevels),
-								DoubleRangeFilterFromSlice(latencies),
+			region := TagFromStringSlice(regions)
+			profiles = append(profiles, &pb.MatchProfile{
+				Name: fmt.Sprintf("world_based_profile_%s_%s", world, region),
+				Pools: []*pb.Pool{
+					{
+						Name: "pool_mode_" + world,
+						TagPresentFilters: []*pb.TagPresentFilter{
+							{
+								Tag: "mode.session",
 							},
 						},
+						StringEqualsFilters: []*pb.StringEqualsFilter{
+							{
+								StringArg: "world",
+								Value:     world,
+							},
+							{
+								StringArg: "region",
+								Value:     region,
+							},
+						},
+						DoubleRangeFilters: []*pb.DoubleRangeFilter{
+							DoubleRangeFilterFromSlice(skillLevels),
+							DoubleRangeFilterFromSlice(latencies),
+						},
 					},
-				})
-			}
+				},
+			})
 		}
 
 		return profiles, nil
@@ -209,6 +210,13 @@ func fetch(ctx context.Context, client pb.BackendServiceClient, profile *pb.Matc
 	}
 
 	return result, nil
+}
+
+func TagFromStringSlice(tags []string) string {
+	rand.Seed(time.Now().UTC().UnixNano())
+	randomIndex := rand.Intn(len(tags))
+
+	return tags[randomIndex]
 }
 
 func DoubleRangeFilterFromSlice(tags []*pb.DoubleRangeFilter) *pb.DoubleRangeFilter {
