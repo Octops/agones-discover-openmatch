@@ -8,7 +8,6 @@ import (
 	"github.com/Octops/agones-discover-openmatch/pkg/config"
 	"github.com/Octops/agones-discover-openmatch/pkg/director"
 	"github.com/Octops/agones-discover-openmatch/pkg/extensions"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -143,7 +142,8 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 
 		for _, world := range worlds {
 			region := TagFromStringSlice(regions)
-			profiles = append(profiles, &pb.MatchProfile{
+
+			profile := &pb.MatchProfile{
 				Name: fmt.Sprintf("world_based_profile_%s_%s", world, region),
 				Pools: []*pb.Pool{
 					{
@@ -161,17 +161,22 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 						},
 					},
 				},
-				// TODO: Extract the creation of the extensions to be a different step of the profile creation
-				Extensions: CreateExtensions("filter", extensions.AllocatorFilter{
-					Labels: map[string]string{
-						"region": region,
-						"world":  world,
-					},
-					Fields: map[string]string{
-						"status.state": "Ready",
-					},
-				}),
-			})
+			}
+
+			// build filter extensions
+			filter := extensions.AllocatorFilter{
+				Labels: map[string]string{
+					"region": region,
+					"world":  world,
+				},
+				Fields: map[string]string{
+					"status.state": "Ready",
+				},
+			}
+
+			// Multiples Extensions: extensions.WithAny(filter.Any()).WithAny(foo.Any()).WithAny(bar.Any()).Extensions()
+			profile.Extensions = extensions.WithAny(filter.Any()).Extensions()
+			profiles = append(profiles, profile)
 		}
 
 		return profiles, nil
@@ -214,15 +219,6 @@ func fetch(ctx context.Context, client pb.BackendServiceClient, profile *pb.Matc
 	}
 
 	return result, nil
-}
-
-func CreateExtensions(key string, value interface{}) map[string]*any.Any {
-	extension := map[string]*any.Any{}
-
-	// TODO: user proper TypeURL. This format does not look right
-	extension[key] = extensions.ToAny("agones.openmatch."+key, value)
-
-	return extension
 }
 
 func TagFromStringSlice(tags []string) string {

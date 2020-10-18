@@ -20,6 +20,7 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 		port := rand.Intn(8000-7000) + 7000
 		conn := fmt.Sprintf("%d.%d.%d.%d:%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256), port)
 		group.Assignment.Connection = conn
+		runtime.Logger().WithField("component", "allocator").Debugf("extension %v", group.Assignment.Extensions)
 		runtime.Logger().WithField("component", "allocator").Debugf("connection %s assigned to request", conn)
 	}
 
