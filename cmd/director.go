@@ -40,13 +40,13 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		logger := runtime.NewLogger(verbose)
+		logger := runtime.NewLogger(verbose).WithField("component", "director")
 		ctx, cancel := context.WithCancel(context.Background())
 		runtime.SetupSignal(cancel)
 
-		logger.Info("starting Open Match Director")
+		logger.Info("starting OpenMatch Director")
 		// TODO: Refactor using Flags and Registry
-		agonesAllocator := allocator.NewAgonesAllocatorService(&allocator.FakeAllocatorServiceClient{}, &allocator.AgonesDiscoverClient{})
+		agonesAllocator := allocator.NewAllocatorService(&allocator.AgonesDiscoverAllocator{})
 		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure, intervalDirector, agonesAllocator); err != nil {
 			logger.Fatal(errors.Wrap(err, "failed to start the Director"))
 		}

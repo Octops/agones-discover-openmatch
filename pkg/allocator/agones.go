@@ -4,31 +4,18 @@ import (
 	"context"
 	"fmt"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
-	"github.com/sirupsen/logrus"
 	"math/rand"
 	"open-match.dev/open-match/pkg/pb"
 )
 
-var _ GameServerDiscoveryServiceClient = (*AgonesDiscoverClient)(nil)
+var _ GameSessionAllocatorService = (*AgonesDiscoverAllocator)(nil)
 
-type AgonesAllocatorService struct {
-	logger *logrus.Entry
-	GameServerAllocatorServiceClient
-	GameServerDiscoveryServiceClient
+type AgonesDiscoverAllocator struct {
 }
 
-func NewAgonesAllocatorService(gameServerAllocatorServiceClient GameServerAllocatorServiceClient, gameServerDiscoveryServiceClient GameServerDiscoveryServiceClient) *AgonesAllocatorService {
-	return &AgonesAllocatorService{
-		runtime.Logger().WithField("component", "agones_allocator"),
-		gameServerAllocatorServiceClient,
-		gameServerDiscoveryServiceClient,
-	}
-}
-
-type FakeAllocatorServiceClient struct {
-}
-
-func (c *FakeAllocatorServiceClient) Allocate(ctx context.Context, req *pb.AssignTicketsRequest) error {
+// Agones Discover
+func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTicketsRequest) error {
+	// Extract filters from Extensions field and query Agones Discover
 	for _, group := range req.Assignments {
 		port := rand.Intn(8000-7000) + 7000
 		conn := fmt.Sprintf("%d.%d.%d.%d:%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256), port)
@@ -39,10 +26,7 @@ func (c *FakeAllocatorServiceClient) Allocate(ctx context.Context, req *pb.Assig
 	return nil
 }
 
-type AgonesDiscoverClient struct {
-}
-
-func (c *AgonesDiscoverClient) FindGameServer(ctx context.Context, filters map[interface{}]interface{}) ([]interface{}, error) {
+func (c *AgonesDiscoverAllocator) FindGameServer(ctx context.Context, filters map[interface{}]interface{}) ([]interface{}, error) {
 	// TODO: Consume from Agones Discover API passing filter
 	panic("implement me")
 }

@@ -26,7 +26,7 @@ type FetchResponse struct {
 
 type ConnFunc func() (*grpc.ClientConn, error)
 
-func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc, interval string, allocatorService allocator.GameServerAllocatorService) error {
+func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc, interval string, allocatorService allocator.AllocatorService) error {
 	conn, err := dial()
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to Open Match Backend")
@@ -73,29 +73,23 @@ func FetchMatches(client pb.BackendServiceClient, matchFunctionServer MatchFunct
 	}
 }
 
-func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.GameServerAllocatorService) director.AssignFunc {
+func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.AllocatorService) director.AssignFunc {
 	return func(ctx context.Context, matches []*pb.Match) error {
 		logger := runtime.Logger().WithFields(logrus.Fields{
 			"component": "director",
 			"command":   "assign",
 		})
 		for _, match := range matches {
-			ticketIDs := []string{}
+			var ticketIDs []string
 			for _, t := range match.GetTickets() {
 				ticketIDs = append(ticketIDs, t.Id)
 			}
-
-			//// TODO: This should be extracted to a proper service that will consume from Agones Discover
-			//port := rand.Intn(8000-7000) + 7000
-			//conn := fmt.Sprintf("%d.%d.%d.%d:%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256), port)
 
 			req := &pb.AssignTicketsRequest{
 				Assignments: []*pb.AssignmentGroup{
 					{
 						TicketIds:  ticketIDs,
-						Assignment: &pb.Assignment{
-							//Connection: conn,
-						},
+						Assignment: &pb.Assignment{},
 					},
 				},
 			}
@@ -112,8 +106,6 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Ga
 				logger.Error(err)
 				return err
 			}
-
-			//logger.Debugf("assigned server %v to match %v with %d tickets", conn, match.GetMatchId(), len(match.GetTickets()))
 		}
 
 		return nil
