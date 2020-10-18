@@ -7,6 +7,7 @@ import (
 	"github.com/Octops/agones-discover-openmatch/pkg/allocator"
 	"github.com/Octops/agones-discover-openmatch/pkg/config"
 	"github.com/Octops/agones-discover-openmatch/pkg/director"
+	"github.com/Octops/agones-discover-openmatch/pkg/extensions"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -94,7 +95,8 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 					{
 						TicketIds: ticketIDs,
 						Assignment: &pb.Assignment{
-							Extensions: map[string]*any.Any{},
+							// Extensions field is used by the allocator to extract the filter
+							Extensions: match.Extensions,
 						},
 					},
 				},
@@ -147,19 +149,11 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 					{
 						Name: "pool_mode_" + world,
 						TagPresentFilters: []*pb.TagPresentFilter{
-							{
-								Tag: "mode.session",
-							},
+							{Tag: "mode.session"},
 						},
 						StringEqualsFilters: []*pb.StringEqualsFilter{
-							{
-								StringArg: "world",
-								Value:     world,
-							},
-							{
-								StringArg: "region",
-								Value:     region,
-							},
+							{StringArg: "world", Value: world},
+							{StringArg: "region", Value: region},
 						},
 						DoubleRangeFilters: []*pb.DoubleRangeFilter{
 							DoubleRangeFilterFromSlice(skillLevels),
@@ -167,6 +161,16 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 						},
 					},
 				},
+				// TODO: Extract the creation of the extensions to be a different step of the profile creation
+				Extensions: CreateExtensions("filter", extensions.AllocatorFilter{
+					Labels: map[string]string{
+						"region": region,
+						"world":  world,
+					},
+					Fields: map[string]string{
+						"status.state": "Ready",
+					},
+				}),
 			})
 		}
 
@@ -210,6 +214,15 @@ func fetch(ctx context.Context, client pb.BackendServiceClient, profile *pb.Matc
 	}
 
 	return result, nil
+}
+
+func CreateExtensions(key string, value interface{}) map[string]*any.Any {
+	extension := map[string]*any.Any{}
+
+	// TODO: user proper TypeURL. This format does not look right
+	extension[key] = extensions.ToAny("agones.openmatch."+key, value)
+
+	return extension
 }
 
 func TagFromStringSlice(tags []string) string {
