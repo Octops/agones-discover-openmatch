@@ -10,7 +10,13 @@ import (
 
 var _ GameSessionAllocatorService = (*AgonesDiscoverAllocator)(nil)
 
+type AgonesDiscoverClient interface {
+	// GetGameServers
+	//Get Fleets
+}
+
 type AgonesDiscoverAllocator struct {
+	client AgonesDiscoverClient
 }
 
 // Agones Discover
@@ -20,6 +26,11 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 		port := rand.Intn(8000-7000) + 7000
 		conn := fmt.Sprintf("%d.%d.%d.%d:%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256), port)
 		group.Assignment.Connection = conn
+
+		// extension map[filter:type_url:"agones.openmatch.filter" value:"{\"labels\":{\"region\":\"us-east-1\",\"world\":\"Pandora\"},\"fields\":{\"status.state\":\"Ready\"}}" ]
+		// Stopped Here: Use Extensions["filter"] to unmarshall to extensions.AllocatorFilter and do the magic
+		//
+
 		runtime.Logger().WithField("component", "allocator").Debugf("extension %v", group.Assignment.Extensions)
 		runtime.Logger().WithField("component", "allocator").Debugf("connection %s assigned to request", conn)
 	}
