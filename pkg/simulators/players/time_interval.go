@@ -9,14 +9,19 @@ import (
 	"google.golang.org/grpc"
 	"math/rand"
 	"open-match.dev/open-match/pkg/pb"
-	"strconv"
 	"sync"
 	"time"
 )
 
+const (
+	GAME_MODE_SESSION = "mode.session"
+)
+
 type MatchRequest struct {
 	Ticket     *pb.Ticket
+	Tags       []string
 	StringArgs map[string]string
+	DoubleArgs map[string]float64
 }
 
 type Player struct {
@@ -98,7 +103,9 @@ func (p *TimeIntervalPlayerSimulator) CreatePlayers(count int) ([]*Player, error
 		players = append(players, &Player{
 			UID: uuid.New().String(),
 			MatchRequest: &MatchRequest{
+				Tags:       []string{GAME_MODE_SESSION},
 				StringArgs: CreateStringArgs(),
+				DoubleArgs: CreateDoubleArgs(),
 			}})
 	}
 
@@ -110,8 +117,9 @@ func (p *TimeIntervalPlayerSimulator) RequestMatchForPlayers(players []*Player) 
 		req := &pb.CreateTicketRequest{
 			Ticket: &pb.Ticket{
 				SearchFields: &pb.SearchFields{
-					// TODO: Split player request across search fields. Latency must be a DoubleRange
+					Tags:       player.MatchRequest.Tags,
 					StringArgs: player.MatchRequest.StringArgs,
+					DoubleArgs: player.MatchRequest.DoubleArgs,
 				},
 			},
 		}
@@ -152,6 +160,18 @@ func (p *TimeIntervalPlayerSimulator) CreateMatchmakingRequests() {
 	}()
 }
 
+func CreateDoubleArgs() map[string]float64 {
+	skillLevels := []float64{10, 100, 1000}
+	latencies := []float64{25, 50, 100}
+	skill := TagFromFloatSlice(skillLevels)
+	latency := TagFromFloatSlice(latencies)
+
+	return map[string]float64{
+		"skill":   skill,
+		"latency": latency,
+	}
+}
+
 func CreateStringArgs() map[string]string {
 	regionTags := []string{
 		"us-east-1",
@@ -165,19 +185,13 @@ func CreateStringArgs() map[string]string {
 		"Pandora",
 		"Orion",
 	}
-	skillLevels := []int{1, 2, 3, 4, 5}
-	latencies := []int{20, 30, 50, 100}
 
 	region := TagFromStringSlice(regionTags)
 	world := TagFromStringSlice(worldTags)
-	skill := TagFromIntSlice(skillLevels)
-	latency := TagFromIntSlice(latencies)
 
 	return map[string]string{
-		"region":  region,
-		"world":   world,
-		"skill":   strconv.Itoa(skill),
-		"latency": strconv.Itoa(latency),
+		"region": region,
+		"world":  world,
 	}
 }
 
@@ -188,7 +202,7 @@ func TagFromStringSlice(tags []string) string {
 	return tags[randomIndex]
 }
 
-func TagFromIntSlice(tags []int) int {
+func TagFromFloatSlice(tags []float64) float64 {
 	rand.Seed(time.Now().UTC().UnixNano())
 	randomIndex := rand.Intn(len(tags))
 

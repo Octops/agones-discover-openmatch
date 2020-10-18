@@ -6,10 +6,12 @@ import (
 	"github.com/Octops/agones-discover-openmatch/pkg/allocator"
 	"github.com/Octops/agones-discover-openmatch/pkg/config"
 	"github.com/Octops/agones-discover-openmatch/pkg/director"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"io"
+	"math/rand"
 	"open-match.dev/open-match/pkg/pb"
 	"time"
 )
@@ -79,6 +81,7 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 			"component": "director",
 			"command":   "assign",
 		})
+
 		for _, match := range matches {
 			var ticketIDs []string
 			for _, t := range match.GetTickets() {
@@ -88,8 +91,10 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 			req := &pb.AssignTicketsRequest{
 				Assignments: []*pb.AssignmentGroup{
 					{
-						TicketIds:  ticketIDs,
-						Assignment: &pb.Assignment{},
+						TicketIds: ticketIDs,
+						Assignment: &pb.Assignment{
+							Extensions: map[string]*any.Any{},
+						},
 					},
 				},
 			}
@@ -115,28 +120,53 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 func GenerateProfiles() director.GenerateProfilesFunc {
 	return func() ([]*pb.MatchProfile, error) {
 		var profiles []*pb.MatchProfile
+
 		worlds := []string{"Dune", "Nova", "Pandora", "Orion"}
+		regions := []string{"us-east-1", "us-east-2", "us-west-1", "us-west-2"}
+
+		skillLevels := []*pb.DoubleRangeFilter{
+			{Min: 0, Max: 10},
+			{Min: 10, Max: 100},
+			{Min: 100, Max: 1000},
+		}
+
+		latencies := []*pb.DoubleRangeFilter{
+			{DoubleArg: "latency", Min: 0, Max: 25},
+			{DoubleArg: "latency", Min: 25, Max: 50},
+			{DoubleArg: "latency", Min: 50, Max: 75},
+			{DoubleArg: "latency", Min: 75, Max: 100},
+		}
+
 		for _, world := range worlds {
-			profiles = append(profiles, &pb.MatchProfile{
-				Name: "world_based_profile_" + world,
-				Pools: []*pb.Pool{
-					{
-						Name: "pool_mode_" + world,
-						StringEqualsFilters: []*pb.StringEqualsFilter{
-							{
-								StringArg: "world",
-								Value:     world,
+			for _, region := range regions {
+				profiles = append(profiles, &pb.MatchProfile{
+					Name: "world_based_profile_" + world,
+					Pools: []*pb.Pool{
+						{
+							Name: "pool_mode_" + world,
+							TagPresentFilters: []*pb.TagPresentFilter{
+								{
+									Tag: "mode.session",
+								},
+							},
+							StringEqualsFilters: []*pb.StringEqualsFilter{
+								{
+									StringArg: "world",
+									Value:     world,
+								},
+								{
+									StringArg: "region",
+									Value:     region,
+								},
+							},
+							DoubleRangeFilters: []*pb.DoubleRangeFilter{
+								DoubleRangeFilterFromSlice(skillLevels),
+								DoubleRangeFilterFromSlice(latencies),
 							},
 						},
-						// TODO: Check cases for TagPresentFilter
-						//TagPresentFilters: []*pb.TagPresentFilter{
-						//	{
-						//		Tag: world,
-						//	},
-						//},
 					},
-				},
-			})
+				})
+			}
 		}
 
 		return profiles, nil
@@ -179,4 +209,11 @@ func fetch(ctx context.Context, client pb.BackendServiceClient, profile *pb.Matc
 	}
 
 	return result, nil
+}
+
+func DoubleRangeFilterFromSlice(tags []*pb.DoubleRangeFilter) *pb.DoubleRangeFilter {
+	rand.Seed(time.Now().UTC().UnixNano())
+	randomIndex := rand.Intn(len(tags))
+
+	return tags[randomIndex]
 }
