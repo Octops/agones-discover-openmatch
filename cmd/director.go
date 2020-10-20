@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
+	"github.com/Octops/agones-discover-openmatch/pkg/allocator"
 	"github.com/Octops/agones-discover-openmatch/pkg/director/openmatch"
 	"github.com/pkg/errors"
 
@@ -39,12 +40,14 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		logger := runtime.NewLogger(verbose)
+		logger := runtime.NewLogger(verbose).WithField("component", "director")
 		ctx, cancel := context.WithCancel(context.Background())
 		runtime.SetupSignal(cancel)
 
-		logger.Info("starting Open Match Director")
-		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure, intervalDirector); err != nil {
+		logger.Info("starting OpenMatch Director")
+		// TODO: Refactor using Flags and Registry
+		agonesAllocator := allocator.NewAllocatorService(&allocator.AgonesDiscoverAllocator{})
+		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure, intervalDirector, agonesAllocator); err != nil {
 			logger.Fatal(errors.Wrap(err, "failed to start the Director"))
 		}
 	},

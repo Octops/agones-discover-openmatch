@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
+	"github.com/Octops/agones-discover-openmatch/pkg/allocator"
 	"github.com/Octops/agones-discover-openmatch/pkg/config"
 	"github.com/Octops/agones-discover-openmatch/pkg/director"
+	"github.com/Octops/agones-discover-openmatch/pkg/extensions"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -27,7 +29,7 @@ type FetchResponse struct {
 
 type ConnFunc func() (*grpc.ClientConn, error)
 
-func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc, interval string) error {
+func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc, interval string, allocatorService allocator.AllocatorService) error {
 	conn, err := dial()
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to Open Match Backend")
@@ -41,7 +43,7 @@ func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc, inter
 		Port:     config.OpenMatch().MatchFunctionPort,
 	})
 
-	assign := AssignTickets(client)
+	assign := AssignTickets(client, allocatorService)
 	profiles := GenerateProfiles()
 
 	if err := director.Run(interval)(ctx, profiles, fetch, assign); err != nil {
@@ -74,68 +76,107 @@ func FetchMatches(client pb.BackendServiceClient, matchFunctionServer MatchFunct
 	}
 }
 
-func AssignTickets(client pb.BackendServiceClient) director.AssignFunc {
+func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.AllocatorService) director.AssignFunc {
 	return func(ctx context.Context, matches []*pb.Match) error {
 		logger := runtime.Logger().WithFields(logrus.Fields{
 			"component": "director",
 			"command":   "assign",
 		})
+
 		for _, match := range matches {
-			ticketIDs := []string{}
+			var ticketIDs []string
 			for _, t := range match.GetTickets() {
 				ticketIDs = append(ticketIDs, t.Id)
 			}
 
-			// TODO: This should be extracted to a proper service that will consume from Agones Discover
-			port := rand.Intn(8000-7000) + 7000
-			conn := fmt.Sprintf("%d.%d.%d.%d:%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256), port)
 			req := &pb.AssignTicketsRequest{
 				Assignments: []*pb.AssignmentGroup{
 					{
 						TicketIds: ticketIDs,
 						Assignment: &pb.Assignment{
-							Connection: conn,
+							// Extensions field is used by the allocator to extract the filter
+							Extensions: match.Extensions,
 						},
 					},
 				},
 			}
 
-			if _, err := client.AssignTickets(context.Background(), req); err != nil {
-				return fmt.Errorf("AssignTickets failed for match %v, got %w", match.GetMatchId(), err)
+			err := allocatorService.Allocate(ctx, req)
+			if err != nil {
+				err := errors.Wrapf(err, "failed to allocate servers for match %v", match.GetMatchId())
+				logger.Error(err)
+				return err
 			}
 
-			logger.Debugf("assigned server %v to match %v with %d tickets", conn, match.GetMatchId(), len(match.GetTickets()))
+			if _, err := client.AssignTickets(ctx, req); err != nil {
+				err := errors.Wrapf(err, "failed to assign tickets for match %v", match.GetMatchId())
+				logger.Error(err)
+				return err
+			}
 		}
 
 		return nil
 	}
 }
 
+// GenerateProfiles generates profiles for every world assigning region, latency and skill randomly
 func GenerateProfiles() director.GenerateProfilesFunc {
 	return func() ([]*pb.MatchProfile, error) {
 		var profiles []*pb.MatchProfile
+
 		worlds := []string{"Dune", "Nova", "Pandora", "Orion"}
+		regions := []string{"us-east-1", "us-east-2", "us-west-1", "us-west-2"}
+
+		skillLevels := []*pb.DoubleRangeFilter{
+			{DoubleArg: "skill", Min: 0, Max: 10},
+			{DoubleArg: "skill", Min: 10, Max: 100},
+			{DoubleArg: "skill", Min: 100, Max: 1000},
+		}
+
+		latencies := []*pb.DoubleRangeFilter{
+			{DoubleArg: "latency", Min: 0, Max: 25},
+			{DoubleArg: "latency", Min: 25, Max: 50},
+			{DoubleArg: "latency", Min: 50, Max: 75},
+			{DoubleArg: "latency", Min: 75, Max: 100},
+		}
+
 		for _, world := range worlds {
-			profiles = append(profiles, &pb.MatchProfile{
-				Name: "world_based_profile_" + world,
+			region := TagFromStringSlice(regions)
+
+			profile := &pb.MatchProfile{
+				Name: fmt.Sprintf("world_based_profile_%s_%s", world, region),
 				Pools: []*pb.Pool{
 					{
 						Name: "pool_mode_" + world,
-						StringEqualsFilters: []*pb.StringEqualsFilter{
-							{
-								StringArg: "world",
-								Value:     world,
-							},
+						TagPresentFilters: []*pb.TagPresentFilter{
+							{Tag: "mode.session"},
 						},
-						// TODO: Check cases for TagPresentFilter
-						//TagPresentFilters: []*pb.TagPresentFilter{
-						//	{
-						//		Tag: world,
-						//	},
-						//},
+						StringEqualsFilters: []*pb.StringEqualsFilter{
+							{StringArg: "world", Value: world},
+							{StringArg: "region", Value: region},
+						},
+						DoubleRangeFilters: []*pb.DoubleRangeFilter{
+							DoubleRangeFilterFromSlice(skillLevels),
+							DoubleRangeFilterFromSlice(latencies),
+						},
 					},
 				},
-			})
+			}
+
+			// build filter extensions
+			filter := extensions.AllocatorFilter{
+				Labels: map[string]string{
+					"region": region,
+					"world":  world,
+				},
+				Fields: map[string]string{
+					"status.state": "Ready",
+				},
+			}
+
+			// Multiples Extensions: extensions.WithAny(filter.Any()).WithAny(foo.Any()).WithAny(bar.Any()).Extensions()
+			profile.Extensions = extensions.WithAny(filter.Any()).Extensions()
+			profiles = append(profiles, profile)
 		}
 
 		return profiles, nil
@@ -178,4 +219,18 @@ func fetch(ctx context.Context, client pb.BackendServiceClient, profile *pb.Matc
 	}
 
 	return result, nil
+}
+
+func TagFromStringSlice(tags []string) string {
+	rand.Seed(time.Now().UTC().UnixNano())
+	randomIndex := rand.Intn(len(tags))
+
+	return tags[randomIndex]
+}
+
+func DoubleRangeFilterFromSlice(tags []*pb.DoubleRangeFilter) *pb.DoubleRangeFilter {
+	rand.Seed(time.Now().UTC().UnixNano())
+	randomIndex := rand.Intn(len(tags))
+
+	return tags[randomIndex]
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
+	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
 	"open-match.dev/open-match/pkg/pb"
 	"time"
@@ -73,7 +74,7 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 					tickets = []*pb.Ticket{}
 					tickets = append(tickets, t)
 					id := fmt.Sprintf("profile-%v-%v", profile.GetName(), time.Now().UnixNano())
-					matches = append(matches, CreateMatchForTickets(id, profile.GetName(), tickets...))
+					matches = append(matches, CreateMatchForTickets(id, profile.GetName(), profile.Extensions, tickets...))
 					match = matches[len(matches)-1]
 					break
 				}
@@ -90,11 +91,12 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 	}
 }
 
-func CreateMatchForTickets(matchID, profileName string, tickets ...*pb.Ticket) *pb.Match {
+func CreateMatchForTickets(matchID, profileName string, extensions map[string]*any.Any, tickets ...*pb.Ticket) *pb.Match {
 	return &pb.Match{
 		MatchId:       matchID,
 		MatchProfile:  profileName,
 		MatchFunction: MATCFUNC_NAME,
+		Extensions:    extensions,
 		Tickets:       tickets,
 	}
 }

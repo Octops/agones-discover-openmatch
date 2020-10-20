@@ -3,6 +3,7 @@ module github.com/Octops/agones-discover-openmatch
 go 1.14
 
 require (
+	github.com/golang/protobuf v1.3.3
 	github.com/google/uuid v1.1.2
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/mitchellh/go-homedir v1.1.0
