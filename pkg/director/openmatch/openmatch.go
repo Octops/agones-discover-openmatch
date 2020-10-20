@@ -164,7 +164,7 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 			}
 
 			// build filter extensions
-			filter := extensions.AllocatorFilter{
+			filter := extensions.AllocatorFilterExtension{
 				Labels: map[string]string{
 					"region": region,
 					"world":  world,
