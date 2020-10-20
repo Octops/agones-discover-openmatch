@@ -11,8 +11,7 @@ import (
 var _ GameSessionAllocatorService = (*AgonesDiscoverAllocator)(nil)
 
 type AgonesDiscoverClient interface {
-	// GetGameServers
-	//Get Fleets
+	ListGameServers(ctx context.Context, filter map[string]string) ([]byte, error)
 }
 
 type AgonesDiscoverAllocator struct {
