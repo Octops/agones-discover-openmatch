@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	GET_GAMESERVER_PATH = "api/v1/gameservers/"
+	GET_GAMESERVER_PATH = "/api/v1/gameservers/"
 )
 
 type AgonesDiscoverClientHTTP struct {
@@ -34,16 +34,25 @@ func NewAgonesDiscoverClientHTTP(serverURI string) (*AgonesDiscoverClientHTTP, e
 }
 
 func (c *AgonesDiscoverClientHTTP) ListGameServers(ctx context.Context, filter map[string]string) ([]byte, error) {
-	url := fmt.Sprintf("%s/%s", c.ServerURI, GET_GAMESERVER_PATH)
-	resp, err := c.cli.Get(url)
+	resp, err := c.cli.Get(fmt.Sprintf("%s/%s", c.ServerURI, GET_GAMESERVER_PATH))
 	if err != nil {
-		return []byte{}, errors.Wrap(err, "failed to list gameservers")
+		return nil, errors.Wrap(err, "failed to list gameservers")
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return []byte{}, errors.Wrap(err, "failed to to ready gameservers response")
+		return nil, errors.Wrap(err, "failed to to ready gameservers response")
 	}
 
 	return body, nil
+}
+
+func EncodeFilter(filter map[string]string) string {
+	params := url.Values{}
+
+	for k, v := range filter {
+		params.Add(k, v)
+	}
+
+	return params.Encode()
 }
