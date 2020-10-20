@@ -10,10 +10,10 @@ import (
 
 func TestAgonesDiscoverClientHTTP_ListGameServers(t *testing.T) {
 	testCases := []struct {
-		name     string
-		handler  func(writer http.ResponseWriter, request *http.Request)
-		filter   map[string]string
-		response []byte
+		name    string
+		handler func(writer http.ResponseWriter, request *http.Request)
+		filter  map[string]string
+		want    []byte
 	}{
 		{
 			name: "it should request GameServers endpoint",
@@ -21,15 +21,41 @@ func TestAgonesDiscoverClientHTTP_ListGameServers(t *testing.T) {
 				writer.WriteHeader(http.StatusOK)
 				writer.Write([]byte(request.URL.Path))
 			},
-			response: []byte(GET_GAMESERVER_PATH),
+			want: []byte(GET_GAMESERVER_PATH),
 		},
 		{
-			name: "it should request GameServers endpoint and filter with one label",
+			name: "it should request GameServers endpoint and filter with one labelSelector",
 			handler: func(writer http.ResponseWriter, request *http.Request) {
 				writer.WriteHeader(http.StatusOK)
 				writer.Write([]byte(request.URL.RawQuery))
 			},
-			response: []byte("filter=status.state%3DReady"),
+			filter: map[string]string{
+				"labelSelector": "region=us-east-1",
+			},
+			want: []byte("labelSelector=region%3Dus-east-1"),
+		},
+		{
+			name: "it should request GameServers endpoint and filter with two labelSelector",
+			handler: func(writer http.ResponseWriter, request *http.Request) {
+				writer.WriteHeader(http.StatusOK)
+				writer.Write([]byte(request.URL.RawQuery))
+			},
+			filter: map[string]string{
+				"labelSelector": "region=us-east-1,cluster=gke-1.16",
+			},
+			want: []byte("labelSelector=region%3Dus-east-1%2Ccluster%3Dgke-1.16"),
+		},
+		{
+			name: "it should request GameServers endpoint and filter with two labelSelector and State Ready",
+			handler: func(writer http.ResponseWriter, request *http.Request) {
+				writer.WriteHeader(http.StatusOK)
+				writer.Write([]byte(request.URL.RawQuery))
+			},
+			filter: map[string]string{
+				"labelSelector": "region=us-east-1,cluster=gke-1.16",
+				"status.state":  "Ready",
+			},
+			want: []byte("labelSelector=region%3Dus-east-1%2Ccluster%3Dgke-1.16&status.state=Ready"),
 		},
 	}
 
@@ -44,9 +70,9 @@ func TestAgonesDiscoverClientHTTP_ListGameServers(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, discoverClient, "AgonesDiscover client HTTP can't be nil")
 
-			response, err := discoverClient.ListGameServers(context.Background(), map[string]string{})
+			got, err := discoverClient.ListGameServers(context.Background(), tc.filter)
 			require.NoError(t, err)
-			require.Equal(t, string(tc.response), string(response))
+			require.Equal(t, string(tc.want), string(got))
 		})
 	}
 }
@@ -57,6 +83,11 @@ func TestEncodeFilter(t *testing.T) {
 		filter map[string]string
 		want   string
 	}{
+		{
+			name:   "it should return empty filter",
+			filter: map[string]string{},
+			want:   "",
+		},
 		{
 			name: "it should return filter for one labelSelector",
 			filter: map[string]string{

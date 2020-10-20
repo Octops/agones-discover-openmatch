@@ -34,7 +34,8 @@ func NewAgonesDiscoverClientHTTP(serverURI string) (*AgonesDiscoverClientHTTP, e
 }
 
 func (c *AgonesDiscoverClientHTTP) ListGameServers(ctx context.Context, filter map[string]string) ([]byte, error) {
-	resp, err := c.cli.Get(fmt.Sprintf("%s/%s", c.ServerURI, GET_GAMESERVER_PATH))
+	u := BuildQueryParams(GET_GAMESERVER_PATH, filter)
+	resp, err := c.cli.Get(fmt.Sprintf("%s/%s", c.ServerURI, u))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list gameservers")
 	}
@@ -45,6 +46,10 @@ func (c *AgonesDiscoverClientHTTP) ListGameServers(ctx context.Context, filter m
 	}
 
 	return body, nil
+}
+
+func BuildQueryParams(path string, filter map[string]string) string {
+	return fmt.Sprintf("%s?%s", path, EncodeFilter(filter))
 }
 
 func EncodeFilter(filter map[string]string) string {
