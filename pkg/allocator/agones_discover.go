@@ -37,7 +37,8 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 	return nil
 }
 
-func (c *AgonesDiscoverAllocator) FindGameServer(ctx context.Context, filters map[interface{}]interface{}) ([]interface{}, error) {
+func (c *AgonesDiscoverAllocator) FindGameServer(ctx context.Context, filters map[string]string) ([]byte, error) {
 	// TODO: Consume from Agones Discover API passing filter
-	panic("implement me")
+	// Stopped Here - Use client for proper request
+	return c.client.ListGameServers(ctx, filters)
 }
