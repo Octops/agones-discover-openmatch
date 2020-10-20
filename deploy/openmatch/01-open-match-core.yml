@@ -693,6 +693,8 @@ metadata:
   annotations:
     chart: open-match-1.0.0
     heritage: Helm
+    prometheus.io/port: "50503"
+    prometheus.io/scrape: "true"
   labels:
     app: open-match
     component: query
@@ -770,6 +772,8 @@ metadata:
   annotations:
     chart: open-match-1.0.0
     heritage: Helm
+    prometheus.io/port: "50506"
+    prometheus.io/scrape: "true"
   labels:
     app: open-match
     component: synchronizer
