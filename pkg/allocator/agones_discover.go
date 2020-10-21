@@ -21,6 +21,8 @@ type AgonesDiscoverAllocator struct {
 }
 
 func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTicketsRequest) error {
+	logger := runtime.Logger().WithField("component", "allocator")
+
 	for _, group := range req.Assignments {
 		filter, err := ExtractFilterFromExtensions(group.Assignment.Extensions)
 		if err != nil {
@@ -35,10 +37,14 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 
 		// TODO: Use the GameServer Player Capacity/Count field to validate if all tickets can be assigned.
 		// NiceToHave: Filter GameServers by Capacity and Count
+		// Remove not assigned tickets based on playersCapacity - Count
+
+		ComputeAssignment(group, gameservers)
+
 		if len(gameservers) > 0 {
 			group.Assignment.Connection = gameservers[0].Status.Address
-			runtime.Logger().WithField("component", "allocator").Debugf("extension %v", group.Assignment.Extensions)
-			runtime.Logger().WithField("component", "allocator").Debugf("connection %s assigned to request", group.Assignment.Connection)
+			logger.Debugf("extension %v", group.Assignment.Extensions)
+			logger.Debugf("connection %s assigned to request", group.Assignment.Connection)
 			continue
 		}
 
@@ -46,6 +52,24 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 	}
 
 	return nil
+}
+
+func ComputeAssignment(group *pb.AssignmentGroup, gameservers []*GameServer) {
+	ticketsIds := []string{}
+
+	if gameservers == nil || len(gameservers) == 0 {
+		return
+	}
+
+	for _, gs := range gameservers {
+		canAllocate := gs.Status.Players.Capacity - gs.Status.Players.Count
+		ticketsIds = append(ticketsIds, group.TicketIds[:canAllocate]...)
+		group.TicketIds = group.TicketIds[canAllocate:]
+
+		// Stopped here - check if ticketsIds were exhausted and break out the loop
+		// It should return only IDs which were assigned
+	}
+
 }
 
 func (c *AgonesDiscoverAllocator) FindGameServer(ctx context.Context, filters map[string]string) ([]byte, error) {

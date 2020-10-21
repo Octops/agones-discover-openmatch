@@ -26,7 +26,8 @@ import (
 )
 
 var (
-	intervalDirector string
+	intervalDirector  string
+	agonesDiscoverURL string
 )
 
 // directorCmd represents the director command
@@ -46,7 +47,14 @@ to quickly create a Cobra application.`,
 
 		logger.Info("starting OpenMatch Director")
 		// TODO: Refactor using Flags and Registry
-		agonesAllocator := allocator.NewAllocatorService(&allocator.AgonesDiscoverAllocator{})
+		client, err := allocator.NewAgonesDiscoverClientHTTP(agonesDiscoverURL)
+		if err != nil {
+			logger.Fatal(errors.Wrap(err, "failed to creating Agones Discover Client"))
+		}
+
+		agonesAllocator := allocator.NewAllocatorService(&allocator.AgonesDiscoverAllocator{
+			Client: client,
+		})
 		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure, intervalDirector, agonesAllocator); err != nil {
 			logger.Fatal(errors.Wrap(err, "failed to start the Director"))
 		}
@@ -56,13 +64,6 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(directorCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// directorCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	directorCmd.Flags().StringVarP(&intervalDirector, "interval", "t", "5s", "interval the Director will fetch matches")
+	directorCmd.Flags().StringVar(&intervalDirector, "interval", "5s", "interval the Director will fetch matches")
+	directorCmd.Flags().StringVar(&agonesDiscoverURL, "agones-discover-url", "http://localhost:8081", "the Agones Discover server URL")
 }
