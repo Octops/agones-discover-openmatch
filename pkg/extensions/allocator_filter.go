@@ -1,8 +1,10 @@
 package extensions
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/pkg/errors"
 	"strings"
 )
 
@@ -23,6 +25,16 @@ func (f *AllocatorFilterExtension) Map() map[string]string {
 	m["fields"] = joinMapValues(f.Fields)
 
 	return m
+}
+
+func ToFilter(value []byte) (*AllocatorFilterExtension, error) {
+	var filter AllocatorFilterExtension
+	err := json.Unmarshal(value, &filter)
+	if err != nil {
+		return nil, errors.Wrap(err, "can't parse to filter")
+	}
+
+	return &filter, nil
 }
 
 func joinMapValues(list map[string]string) string {
