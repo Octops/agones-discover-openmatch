@@ -15,10 +15,9 @@ type AgonesDiscoverClient interface {
 }
 
 type AgonesDiscoverAllocator struct {
-	client AgonesDiscoverClient
+	Client AgonesDiscoverClient
 }
 
-// Agones Discover
 func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTicketsRequest) error {
 	// Extract filters from Extensions field and query Agones Discover
 	for _, group := range req.Assignments {
@@ -38,7 +37,5 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 }
 
 func (c *AgonesDiscoverAllocator) FindGameServer(ctx context.Context, filters map[string]string) ([]byte, error) {
-	// TODO: Consume from Agones Discover API passing filter
-	// Stopped Here - Use client for proper request
-	return c.client.ListGameServers(ctx, filters)
+	return c.Client.ListGameServers(ctx, filters)
 }
