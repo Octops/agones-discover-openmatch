@@ -16,50 +16,87 @@ import (
 	"time"
 )
 
-/*
-Call Allocate and find a gameserver using the filter DeepEqual is enough
-Assign Conn to tickets
-Validate AssignTicketsRequest
-*/
 func TestAgonesDiscoverAllocator_Allocate(t *testing.T) {
-	t.Run("it should assign conn to tickets", func(t *testing.T) {
-		client := &mockAgonesDiscoverClient{}
-		discoverAllocator := &AgonesDiscoverAllocator{
-			Client: client,
-		}
+	filter := &extensions.AllocatorFilterExtension{
+		Labels: map[string]string{
+			"region": "us-east-1",
+		},
+		Fields: map[string]string{
+			"status.state": "Ready",
+		},
+	}
 
-		filter := &extensions.AllocatorFilterExtension{
-			Labels: map[string]string{
-				"region": "us-east-1",
-			},
-			Fields: map[string]string{
-				"status.state": "Ready",
-			},
-		}
-
-		client.On("ListGameServers", context.Background(), filter.Map()).
-			Return(createGameServersWithLabels(1, filter.Labels), nil)
-
-		req := &pb.AssignTicketsRequest{
-			Assignments: []*pb.AssignmentGroup{
-				{
-					TicketIds: []string{
-						uuid.New().String(),
-						uuid.New().String(),
-						uuid.New().String(),
-					},
-					Assignment: &pb.Assignment{
-						Extensions: filter.Any(),
+	testCases := []struct {
+		name          string
+		filter        *extensions.AllocatorFilterExtension
+		ticketRequest *pb.AssignTicketsRequest
+		gameServers   int
+	}{
+		{
+			name:   "it should set Connection for Assignment if GameServers are returned",
+			filter: filter,
+			ticketRequest: &pb.AssignTicketsRequest{
+				Assignments: []*pb.AssignmentGroup{
+					{
+						TicketIds: []string{
+							uuid.New().String(),
+							uuid.New().String(),
+							uuid.New().String(),
+						},
+						Assignment: &pb.Assignment{
+							Extensions: filter.Any(),
+						},
 					},
 				},
 			},
-		}
+			gameServers: 1,
+		},
+		{
+			name:   "it should not set Connection for Assignment if GameServers are not returned",
+			filter: filter,
+			ticketRequest: &pb.AssignTicketsRequest{
+				Assignments: []*pb.AssignmentGroup{
+					{
+						TicketIds: []string{
+							uuid.New().String(),
+							uuid.New().String(),
+							uuid.New().String(),
+						},
+						Assignment: &pb.Assignment{
+							Extensions: filter.Any(),
+						},
+					},
+				},
+			},
+			gameServers: 0,
+		},
+	}
 
-		err := discoverAllocator.Allocate(context.Background(), req)
-		require.NoError(t, err)
-		client.AssertExpectations(t)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &mockAgonesDiscoverClient{}
+			discoverAllocator := &AgonesDiscoverAllocator{
+				Client: client,
+			}
 
-	})
+			client.On("ListGameServers", context.Background(), filter.Map()).
+				Return(createGameServersWithLabels(tc.gameServers, filter.Labels), nil)
+
+			err := discoverAllocator.Allocate(context.Background(), tc.ticketRequest)
+			require.NoError(t, err)
+			client.AssertExpectations(t)
+
+			if tc.gameServers > 0 {
+				for _, assignment := range tc.ticketRequest.Assignments {
+					require.NotEmpty(t, assignment.Assignment.Connection)
+				}
+			} else {
+				for _, assignment := range tc.ticketRequest.Assignments {
+					require.Empty(t, assignment.Assignment.Connection)
+				}
+			}
+		})
+	}
 }
 
 func TestAgonesDiscoverAllocator_Call_FindGameServer(t *testing.T) {
