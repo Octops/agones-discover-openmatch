@@ -17,6 +17,10 @@ import (
 	"time"
 )
 
+type Assigner interface {
+	AssignTickets(ctx context.Context, in *pb.AssignTicketsRequest, opts ...grpc.CallOption) (*pb.AssignTicketsResponse, error)
+}
+
 type MatchFunctionServer struct {
 	HostName string
 	Port     int32
@@ -66,7 +70,7 @@ func FetchMatches(client pb.BackendServiceClient, matchFunctionServer MatchFunct
 		fetchResponse := FetchResponse{}
 		go func(p *pb.MatchProfile) {
 			defer cancel()
-			if fetchResponse.Matches, fetchResponse.Err = fetch(ctxFetch, client, profile, matchFunctionServer); fetchResponse.Err != nil {
+			if fetchResponse.Matches, fetchResponse.Err = fetchMatches(ctxFetch, client, profile, matchFunctionServer); fetchResponse.Err != nil {
 				logger.Error(errors.Wrap(fetchResponse.Err, "failed to fetch matches from Open Match Backend"))
 			}
 		}(profile)
@@ -84,22 +88,7 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 		})
 
 		for _, match := range matches {
-			var ticketIDs []string
-			for _, t := range match.GetTickets() {
-				ticketIDs = append(ticketIDs, t.Id)
-			}
-
-			req := &pb.AssignTicketsRequest{
-				Assignments: []*pb.AssignmentGroup{
-					{
-						TicketIds: ticketIDs,
-						Assignment: &pb.Assignment{
-							// Extensions field is used by the allocator to extract the filter
-							Extensions: match.Extensions,
-						},
-					},
-				},
-			}
+			req := CreateAssignTicketRequestForMatch(match)
 
 			err := allocatorService.Allocate(ctx, req)
 			if err != nil {
@@ -108,10 +97,8 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 				return err
 			}
 
-			if _, err := client.AssignTickets(ctx, req); err != nil {
-				err := errors.Wrapf(err, "failed to assign tickets for match %v", match.GetMatchId())
-				logger.Error(err)
-				return err
+			if err = assignTickets(ctx, req, client); err != nil {
+				logger.Error(errors.Wrapf(err, "failed assign ticket for matchId %s", match.MatchId))
 			}
 		}
 
@@ -119,7 +106,43 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 	}
 }
 
-// GenerateProfiles generates profiles for every world assigning region, latency and skill randomly
+func CreateAssignTicketRequestForMatch(match *pb.Match) *pb.AssignTicketsRequest {
+	var ticketIDs []string
+
+	for _, t := range match.GetTickets() {
+		ticketIDs = append(ticketIDs, t.Id)
+	}
+
+	req := &pb.AssignTicketsRequest{
+		Assignments: []*pb.AssignmentGroup{
+			{
+				TicketIds: ticketIDs,
+				Assignment: &pb.Assignment{
+					// Extensions field is used by the allocator to extract the filter
+					Extensions: match.Extensions,
+				},
+			},
+		},
+	}
+	return req
+}
+
+func CleanUpAssignmentsWithoutConnection(group []*pb.AssignmentGroup) []*pb.AssignmentGroup {
+	var cleanedGroup []*pb.AssignmentGroup
+
+	for i := 0; i < len(group); i++ {
+		if len(group[i].Assignment.Connection) > 0 {
+			cleanedGroup = append(cleanedGroup, group[i])
+			copy(group[i:], group[i+1:])
+			group[len(group)-1] = nil // or the zero value of T
+			group = group[:len(group)-1]
+		}
+	}
+
+	return cleanedGroup
+}
+
+// generateProfiles generates profiles for every world assigning region, latency and skill randomly
 func GenerateProfiles() director.GenerateProfilesFunc {
 	return func() ([]*pb.MatchProfile, error) {
 		var profiles []*pb.MatchProfile
@@ -183,7 +206,23 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 	}
 }
 
-func fetch(ctx context.Context, client pb.BackendServiceClient, profile *pb.MatchProfile, matchFunctionServer MatchFunctionServer) ([]*pb.Match, error) {
+func assignTickets(ctx context.Context, req *pb.AssignTicketsRequest, assigner Assigner) error {
+	// TODO: Check for AssignTicketsResponse.Failures
+	assignments := CleanUpAssignmentsWithoutConnection(req.Assignments)
+
+	if len(assignments) == 0 {
+		return fmt.Errorf("the AssignTicketsRequest does not have assignments with connections set")
+	}
+
+	req.Assignments = assignments
+	if _, err := assigner.AssignTickets(ctx, req); err != nil {
+		return errors.Wrapf(err, "failed to assign tickets with BackendServiceClient")
+	}
+
+	return nil
+}
+
+func fetchMatches(ctx context.Context, client pb.BackendServiceClient, profile *pb.MatchProfile, matchFunctionServer MatchFunctionServer) ([]*pb.Match, error) {
 	req := &pb.FetchMatchesRequest{
 		Config: &pb.FunctionConfig{
 			Host: matchFunctionServer.HostName,
