@@ -97,9 +97,13 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 				return err
 			}
 
-			if err = assignTickets(ctx, req, client); err != nil {
+			// assignTickets is a noop and should not compromise the whole allocation
+			assigned, err := assignTickets(ctx, req, client)
+			if err != nil {
 				logger.Error(errors.Wrapf(err, "failed assign ticket for matchId %s", match.MatchId))
 			}
+
+			logger.Debugf("matchId %s got %d assignments assigned", match.MatchId, assigned)
 		}
 
 		return nil
@@ -206,20 +210,20 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 	}
 }
 
-func assignTickets(ctx context.Context, req *pb.AssignTicketsRequest, assigner Assigner) error {
+func assignTickets(ctx context.Context, req *pb.AssignTicketsRequest, assigner Assigner) (int, error) {
 	// TODO: Check for AssignTicketsResponse.Failures
 	assignments := CleanUpAssignmentsWithoutConnection(req.Assignments)
 
 	if len(assignments) == 0 {
-		return fmt.Errorf("the AssignTicketsRequest does not have assignments with connections set")
+		return 0, fmt.Errorf("the AssignTicketsRequest does not have assignments with connections set")
 	}
 
 	req.Assignments = assignments
 	if _, err := assigner.AssignTickets(ctx, req); err != nil {
-		return errors.Wrapf(err, "failed to assign tickets with BackendServiceClient")
+		return len(assignments), errors.Wrapf(err, "failed to assign tickets with BackendServiceClient")
 	}
 
-	return nil
+	return len(assignments), nil
 }
 
 func fetchMatches(ctx context.Context, client pb.BackendServiceClient, profile *pb.MatchProfile, matchFunctionServer MatchFunctionServer) ([]*pb.Match, error) {
