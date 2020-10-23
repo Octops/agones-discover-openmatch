@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func TestAgonesDiscoverAllocator_Allocate(t *testing.T) {
+func TestAgonesDiscoverAllocator_SetConnection(t *testing.T) {
 	filter := &extensions.AllocatorFilterExtension{
 		Labels: map[string]string{
 			"region": "us-east-1",
@@ -127,7 +127,7 @@ func TestAgonesDiscoverAllocator_Call_FindGameServer(t *testing.T) {
 	})
 }
 
-func TestAgonesDiscoverAllocator_HasCapacity(t *testing.T) {
+func TestAgonesDiscoverAllocator_Allocate(t *testing.T) {
 	type wantError struct {
 		want bool
 		err  error
@@ -193,18 +193,38 @@ func TestAgonesDiscoverAllocator_HasCapacity(t *testing.T) {
 			wantAssigned:   2,
 			wantErr:        wantError{false, nil},
 		},
+		{
+			name:           "it should assign 0 ticket for capacity 1 and player count 1",
+			gameservers:    1,
+			assignments:    1,
+			tickets:        1,
+			playerCapacity: 1,
+			playerCount:    1,
+			wantAssigned:   0,
+			wantErr:        wantError{false, nil},
+		},
+		{
+			name:           "it should assign 1 ticket for capacity 2 and player count 1",
+			gameservers:    1,
+			assignments:    1,
+			tickets:        1,
+			playerCapacity: 2,
+			playerCount:    1,
+			wantAssigned:   1,
+			wantErr:        wantError{false, nil},
+		},
+		{
+			name:           "it should assign 10 ticket for capacity 20 and player count 10",
+			gameservers:    1,
+			assignments:    10,
+			tickets:        10,
+			playerCapacity: 20,
+			playerCount:    10,
+			wantAssigned:   10,
+			wantErr:        wantError{false, nil},
+		},
 	}
 
-	/*
-		The number of tickets assigned should match the capacity available from the returned GameServers
-		The capacity is a compute that uses Players Capacity - Players Count: 10-5 = 5 Max Tickets count to be assigned
-		-
-		- Group with 10 tickets and GS capacity = 10 == All tickets assigned
-		- Group with 10 tickets and GS capacity = 5 == 5 Tickets assigned
-		- Group with 20 Tickets and GS capacity = 0 == 0 Tickets assigned
-		- Group with 0 Tickets and GS capacity = 0 == 0 Tickets assigned
-		- Group with 0 Tickets and GS capacity = 10 == 0 Tickets assigned
-	*/
 	for _, tc := range testCases {
 		filter := &extensions.AllocatorFilterExtension{
 			Labels: map[string]string{
