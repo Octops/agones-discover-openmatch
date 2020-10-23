@@ -107,7 +107,7 @@ func TestAgonesDiscoverAllocator_Call_FindGameServer(t *testing.T) {
 		}
 
 		client.On("ListGameServers", context.Background(), map[string]string{}).Return([]byte{}, nil)
-		_, err := discoverAllocator.FindGameServer(context.Background(), map[string]string{})
+		_, err := discoverAllocator.FindGameServers(context.Background(), map[string]string{})
 		require.NoError(t, err)
 
 		client.AssertExpectations(t)
@@ -120,7 +120,7 @@ func TestAgonesDiscoverAllocator_Call_FindGameServer(t *testing.T) {
 		}
 
 		client.On("ListGameServers", context.Background(), map[string]string{}).Return([]byte{}, errors.New("error"))
-		_, err := discoverAllocator.FindGameServer(context.Background(), map[string]string{})
+		_, err := discoverAllocator.FindGameServers(context.Background(), map[string]string{})
 		require.Error(t, err)
 
 		client.AssertExpectations(t)

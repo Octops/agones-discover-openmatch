@@ -37,7 +37,7 @@ type GameServerAllocatorClient interface {
 // GameServerDiscoveryClient communicates with some sort of underlying infrastructure or service
 // and return GameServers for a given filter
 type GameServerDiscoveryClient interface {
-	FindGameServer(ctx context.Context, filters map[string]string) ([]byte, error)
+	FindGameServers(ctx context.Context, filters map[string]string) ([]byte, error)
 }
 
 func NewAllocatorService(service GameServerAllocator) AllocatorService {

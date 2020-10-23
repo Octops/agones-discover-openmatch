@@ -20,23 +20,24 @@ type AgonesDiscoverAllocator struct {
 	Client AgonesDiscoverClient
 }
 
+// Allocate will only assign a GameServer to an Assignment if the Capacity (Players.Status.Capacity - Players.Stats.Count)
+// is <= the number of the TicketsIds part of the Assignment
 func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTicketsRequest) error {
 	logger := runtime.Logger().WithField("component", "allocator")
 
-	for _, group := range req.Assignments {
-		if err := IsValidForAllocation(group); err != nil {
+	for _, assignmentGroup := range req.Assignments {
+		if err := IsAssignmentGroupValidForAllocation(assignmentGroup); err != nil {
 			return err
 		}
 
-		filter, err := ExtractFilterFromExtensions(group.Assignment.Extensions)
+		filter, err := ExtractFilterFromExtensions(assignmentGroup.Assignment.Extensions)
 		if err != nil {
 			return errors.Wrap(err, "the assignment does not have a valid filter extension")
 		}
 
-		resp, err := c.Client.ListGameServers(ctx, filter.Map())
-		gameservers, err := ParseGameServersResponse(resp)
+		gameservers, err := c.ListGameServers(ctx, filter)
 		if err != nil {
-			return errors.Wrap(err, "the response does not contain GameServers")
+			return err
 		}
 
 		if len(gameservers) == 0 {
@@ -44,16 +45,14 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 			continue
 		}
 
-		// TODO: Use the GameServer Player Capacity/Count field to validate if all tickets can be assigned.
 		// NiceToHave: Filter GameServers by Capacity and Count
 		// Remove not assigned tickets based on playersCapacity - Count
-
 		// strategy: allTogether, CapacityBased FallBack
 		for _, gs := range gameservers {
-			if HasCapacity(group, gs) {
-				group.Assignment.Connection = gs.Status.Address
-				logger.Debugf("extension %v", group.Assignment.Extensions)
-				logger.Debugf("connection %s assigned to request", group.Assignment.Connection)
+			if HasCapacity(assignmentGroup, gs) {
+				assignmentGroup.Assignment.Connection = gs.Status.Address
+				logger.Debugf("extension %v", assignmentGroup.Assignment.Extensions)
+				logger.Debugf("connection %s assigned to request", assignmentGroup.Assignment.Connection)
 				break
 			}
 		}
@@ -62,7 +61,25 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 	return nil
 }
 
-func IsValidForAllocation(group *pb.AssignmentGroup) error {
+func (c *AgonesDiscoverAllocator) ListGameServers(ctx context.Context, filter *extensions.AllocatorFilterExtension) ([]*GameServer, error) {
+	resp, err := c.FindGameServers(ctx, filter.Map())
+	if err != nil {
+		return nil, errors.Wrap(err, "the response does not contain GameServers")
+	}
+
+	gameservers, err := ParseGameServersResponse(resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "error parsing gameservers from response")
+	}
+
+	return gameservers, nil
+}
+
+func (c *AgonesDiscoverAllocator) FindGameServers(ctx context.Context, filters map[string]string) ([]byte, error) {
+	return c.Client.ListGameServers(ctx, filters)
+}
+
+func IsAssignmentGroupValidForAllocation(group *pb.AssignmentGroup) error {
 	if group.Assignment == nil || group.Assignment.Extensions == nil {
 		return errors.New("assignment or extension is nil")
 	}
@@ -77,10 +94,6 @@ func IsValidForAllocation(group *pb.AssignmentGroup) error {
 func HasCapacity(group *pb.AssignmentGroup, gs *GameServer) bool {
 	capacity := gs.Status.Players.Capacity - gs.Status.Players.Count
 	return capacity >= int64(len(group.TicketIds))
-}
-
-func (c *AgonesDiscoverAllocator) FindGameServer(ctx context.Context, filters map[string]string) ([]byte, error) {
-	return c.Client.ListGameServers(ctx, filters)
 }
 
 func ExtractFilterFromExtensions(extension map[string]*any.Any) (*extensions.AllocatorFilterExtension, error) {
