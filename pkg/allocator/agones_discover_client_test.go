@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestAgonesDiscoverClientHTTP_ListGameServers(t *testing.T) {
+func TestAgonesDiscoverClientHTTP_ListGameServers_Filters(t *testing.T) {
 	testCases := []struct {
 		name    string
 		handler func(writer http.ResponseWriter, request *http.Request)
