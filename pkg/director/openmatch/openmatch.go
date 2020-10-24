@@ -80,6 +80,44 @@ func FetchMatches(client pb.BackendServiceClient, matchFunctionServer MatchFunct
 	}
 }
 
+func fetchMatches(ctx context.Context, client pb.BackendServiceClient, profile *pb.MatchProfile, matchFunctionServer MatchFunctionServer) ([]*pb.Match, error) {
+	req := &pb.FetchMatchesRequest{
+		Config: &pb.FunctionConfig{
+			Host: matchFunctionServer.HostName,
+			Port: matchFunctionServer.Port,
+			Type: pb.FunctionConfig_GRPC,
+		},
+		Profile: profile,
+	}
+
+	logger := runtime.Logger().WithFields(logrus.Fields{
+		"component": "director",
+		"command":   "fetch",
+	})
+
+	logger.Debugf("fetching matches for profile %s", profile.GetName())
+	stream, err := client.FetchMatches(ctx, req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to fetch matches")
+	}
+
+	var result []*pb.Match
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to receive matches from stream")
+		}
+
+		result = append(result, resp.GetMatch())
+	}
+
+	return result, nil
+}
+
 func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.AllocatorService) director.AssignFunc {
 	return func(ctx context.Context, matches []*pb.Match) error {
 		logger := runtime.Logger().WithFields(logrus.Fields{
@@ -110,6 +148,22 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 	}
 }
 
+func assignTickets(ctx context.Context, req *pb.AssignTicketsRequest, assigner Assigner) (int, error) {
+	// TODO: Check for AssignTicketsResponse.Failures
+	assignments := CleanUpAssignmentsWithoutConnection(req.Assignments)
+
+	if len(assignments) == 0 {
+		return 0, fmt.Errorf("the AssignTicketsRequest does not have assignments with connections set")
+	}
+
+	req.Assignments = assignments
+	if _, err := assigner.AssignTickets(ctx, req); err != nil {
+		return len(assignments), errors.Wrapf(err, "failed to assign tickets with BackendServiceClient")
+	}
+
+	return len(assignments), nil
+}
+
 func CleanUpAssignmentsWithoutConnection(group []*pb.AssignmentGroup) []*pb.AssignmentGroup {
 	var cleanedGroup []*pb.AssignmentGroup
 
@@ -122,6 +176,7 @@ func CleanUpAssignmentsWithoutConnection(group []*pb.AssignmentGroup) []*pb.Assi
 
 	return cleanedGroup
 }
+
 func CreateAssignTicketRequestForMatch(match *pb.Match) *pb.AssignTicketsRequest {
 	var ticketIDs []string
 
@@ -141,21 +196,6 @@ func CreateAssignTicketRequestForMatch(match *pb.Match) *pb.AssignTicketsRequest
 		},
 	}
 	return req
-}
-
-func CleanUpAssignmentsWithoutConnection(group []*pb.AssignmentGroup) []*pb.AssignmentGroup {
-	var cleanedGroup []*pb.AssignmentGroup
-
-	for i := 0; i < len(group); i++ {
-		if len(group[i].Assignment.Connection) > 0 {
-			cleanedGroup = append(cleanedGroup, group[i])
-			copy(group[i:], group[i+1:])
-			group[len(group)-1] = nil // or the zero value of T
-			group = group[:len(group)-1]
-		}
-	}
-
-	return cleanedGroup
 }
 
 // generateProfiles generates profiles for every world assigning region, latency and skill randomly
@@ -220,60 +260,6 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 
 		return profiles, nil
 	}
-}
-
-func assignTickets(ctx context.Context, req *pb.AssignTicketsRequest, assigner Assigner) (int, error) {
-	// TODO: Check for AssignTicketsResponse.Failures
-	assignments := CleanUpAssignmentsWithoutConnection(req.Assignments)
-
-	if len(assignments) == 0 {
-		return 0, fmt.Errorf("the AssignTicketsRequest does not have assignments with connections set")
-	}
-
-	req.Assignments = assignments
-	if _, err := assigner.AssignTickets(ctx, req); err != nil {
-		return len(assignments), errors.Wrapf(err, "failed to assign tickets with BackendServiceClient")
-	}
-
-	return len(assignments), nil
-}
-
-func fetchMatches(ctx context.Context, client pb.BackendServiceClient, profile *pb.MatchProfile, matchFunctionServer MatchFunctionServer) ([]*pb.Match, error) {
-	req := &pb.FetchMatchesRequest{
-		Config: &pb.FunctionConfig{
-			Host: matchFunctionServer.HostName,
-			Port: matchFunctionServer.Port,
-			Type: pb.FunctionConfig_GRPC,
-		},
-		Profile: profile,
-	}
-
-	logger := runtime.Logger().WithFields(logrus.Fields{
-		"component": "director",
-		"command":   "fetch",
-	})
-
-	logger.Debugf("fetching matches for profile %s", profile.GetName())
-	stream, err := client.FetchMatches(ctx, req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to fetch matches")
-	}
-
-	var result []*pb.Match
-	for {
-		resp, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to receive matches from stream")
-		}
-
-		result = append(result, resp.GetMatch())
-	}
-
-	return result, nil
 }
 
 func TagFromStringSlice(tags []string) string {
