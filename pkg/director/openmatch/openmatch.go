@@ -110,6 +110,18 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 	}
 }
 
+func CleanUpAssignmentsWithoutConnection(group []*pb.AssignmentGroup) []*pb.AssignmentGroup {
+	var cleanedGroup []*pb.AssignmentGroup
+
+	for i, g := range group {
+		if len(g.Assignment.Connection) > 0 {
+			cleanedGroup = append(cleanedGroup, g)
+			group[i] = nil
+		}
+	}
+
+	return cleanedGroup
+}
 func CreateAssignTicketRequestForMatch(match *pb.Match) *pb.AssignTicketsRequest {
 	var ticketIDs []string
 
