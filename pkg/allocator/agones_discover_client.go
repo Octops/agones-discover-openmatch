@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	GET_GAMESERVER_PATH = "/api/v1/gameservers/"
+	GET_GAMESERVER_PATH = "api/v1/gameservers"
 )
 
 type AgonesDiscoverClientHTTP struct {
