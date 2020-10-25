@@ -2,9 +2,14 @@ package allocator
 
 import (
 	"context"
+	"errors"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
 	"github.com/sirupsen/logrus"
 	"open-match.dev/open-match/pkg/pb"
+)
+
+var (
+	ErrGameServersNotFound = errors.New("gameservers not found")
 )
 
 type AllocatorService struct {

@@ -37,6 +37,7 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 
 		gameservers, err := c.ListGameServers(ctx, filter)
 		if err != nil {
+			logger.Error(err)
 			return err
 		}
 
@@ -64,11 +65,16 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 func (c *AgonesDiscoverAllocator) ListGameServers(ctx context.Context, filter *extensions.AllocatorFilterExtension) ([]*GameServer, error) {
 	resp, err := c.FindGameServers(ctx, filter.Map())
 	if err != nil {
+		if err == ErrGameServersNotFound {
+			return nil, err
+		}
+
 		return nil, errors.Wrap(err, "the response does not contain GameServers")
 	}
 
 	gameservers, err := ParseGameServersResponse(resp)
 	if err != nil {
+		runtime.Logger().Errorf("%v", resp)
 		return nil, errors.Wrap(err, "error parsing gameservers from response")
 	}
 

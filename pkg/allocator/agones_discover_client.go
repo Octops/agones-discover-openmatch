@@ -40,6 +40,10 @@ func (c *AgonesDiscoverClientHTTP) ListGameServers(ctx context.Context, filter m
 		return nil, errors.Wrap(err, "failed to list gameservers")
 	}
 
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, ErrGameServersNotFound
+	}
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to to ready gameservers response")
