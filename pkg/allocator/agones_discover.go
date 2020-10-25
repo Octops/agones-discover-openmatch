@@ -20,6 +20,10 @@ type AgonesDiscoverAllocator struct {
 	Client AgonesDiscoverClient
 }
 
+type GameServersResponse struct {
+	Data []*GameServer `json:"data"`
+}
+
 // Allocate will only assign a GameServer to an Assignment if the Capacity (Players.Status.Capacity - Players.Stats.Count)
 // is <= the number of the TicketsIds part of the Assignment
 func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTicketsRequest) error {
@@ -37,6 +41,7 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 
 		gameservers, err := c.ListGameServers(ctx, filter)
 		if err != nil {
+			logger.Error(err)
 			return err
 		}
 
@@ -64,11 +69,16 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 func (c *AgonesDiscoverAllocator) ListGameServers(ctx context.Context, filter *extensions.AllocatorFilterExtension) ([]*GameServer, error) {
 	resp, err := c.FindGameServers(ctx, filter.Map())
 	if err != nil {
+		if err == ErrGameServersNotFound {
+			return nil, err
+		}
+
 		return nil, errors.Wrap(err, "the response does not contain GameServers")
 	}
 
 	gameservers, err := ParseGameServersResponse(resp)
 	if err != nil {
+		runtime.Logger().Errorf("%v", resp)
 		return nil, errors.Wrap(err, "error parsing gameservers from response")
 	}
 
@@ -92,8 +102,14 @@ func IsAssignmentGroupValidForAllocation(group *pb.AssignmentGroup) error {
 }
 
 func HasCapacity(group *pb.AssignmentGroup, gs *GameServer) bool {
+	// Allow any number of users to join the GameServer if the PlayerTracking feature flag is not enabled
+	if gs.Status.Players == nil {
+		return true
+	}
+
 	capacity := gs.Status.Players.Capacity - gs.Status.Players.Count
-	return capacity >= int64(len(group.TicketIds))
+	// If Count and Capacity are not it should allow allocation. This is just a possible scenario to be reviewed in the future
+	return (capacity >= int64(len(group.TicketIds))) || (gs.Status.Players.Count == 0 && gs.Status.Players.Capacity == 0)
 }
 
 func ExtractFilterFromExtensions(extension map[string]*any.Any) (*extensions.AllocatorFilterExtension, error) {
@@ -110,12 +126,12 @@ func ExtractFilterFromExtensions(extension map[string]*any.Any) (*extensions.All
 }
 
 func ParseGameServersResponse(resp []byte) ([]*GameServer, error) {
-	var gameservers []*GameServer
+	var items GameServersResponse
 
-	err := json.Unmarshal(resp, &gameservers)
+	err := json.Unmarshal(resp, &items)
 	if err != nil {
 		return nil, err
 	}
 
-	return gameservers, nil
+	return items.Data, nil
 }

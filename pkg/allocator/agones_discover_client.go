@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	GET_GAMESERVER_PATH = "/api/v1/gameservers/"
+	GET_GAMESERVER_PATH = "api/v1/gameservers"
 )
 
 type AgonesDiscoverClientHTTP struct {
@@ -38,6 +38,10 @@ func (c *AgonesDiscoverClientHTTP) ListGameServers(ctx context.Context, filter m
 	resp, err := c.cli.Get(fmt.Sprintf("%s/%s", c.ServerURI, u))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list gameservers")
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, ErrGameServersNotFound
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
