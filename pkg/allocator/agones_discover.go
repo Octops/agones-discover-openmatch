@@ -102,8 +102,14 @@ func IsAssignmentGroupValidForAllocation(group *pb.AssignmentGroup) error {
 }
 
 func HasCapacity(group *pb.AssignmentGroup, gs *GameServer) bool {
+	// Allow any number of users to join the GameServer if the PlayerTracking feature flag is not enabled
+	if gs.Status.Players == nil {
+		return true
+	}
+
 	capacity := gs.Status.Players.Capacity - gs.Status.Players.Count
-	return capacity >= int64(len(group.TicketIds))
+	// If Count and Capacity are not it should allow allocation. This is just a possible scenario to be reviewed in the future
+	return (capacity >= int64(len(group.TicketIds))) || (gs.Status.Players.Count == 0 && gs.Status.Players.Capacity == 0)
 }
 
 func ExtractFilterFromExtensions(extension map[string]*any.Any) (*extensions.AllocatorFilterExtension, error) {
