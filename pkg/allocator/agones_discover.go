@@ -46,7 +46,7 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 		}
 
 		if len(gameservers) == 0 {
-			logger.Warn("request could not have a connection assigned, no gameservers found")
+			logger.Debugf("gameservers not found for request with filter %v", filter.Map())
 			continue
 		}
 
@@ -56,8 +56,8 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 		for _, gs := range gameservers {
 			if HasCapacity(assignmentGroup, gs) {
 				assignmentGroup.Assignment.Connection = gs.Status.Address
-				logger.Debugf("extension %v", assignmentGroup.Assignment.Extensions)
-				logger.Debugf("connection %s assigned to request", assignmentGroup.Assignment.Connection)
+				//logger.Debugf("extension %v", assignmentGroup.Assignment.Extensions)
+				logger.Infof("gameserver %s connection %s assigned to request, total tickets: %d", gs.Name, assignmentGroup.Assignment.Connection, len(assignmentGroup.TicketIds))
 				break
 			}
 		}

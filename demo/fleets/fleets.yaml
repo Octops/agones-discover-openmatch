@@ -1,0 +1,136 @@
+---
+apiVersion: "agones.dev/v1"
+kind: Fleet
+metadata:
+  name: fleet-us-east-1-dune
+spec:
+  replicas: 2
+  template:
+    metadata:
+      # Labels only assigned to the GameServer
+      labels:
+        region: us-east-1
+        world: Dune
+    spec:
+      ports:
+        - name: default
+          containerPort: 7654
+      template:
+        metadata:
+          # Labels only assigned to the Pod
+          labels:
+            region: us-east-1
+            world: Dune
+        spec:
+          containers:
+            - name: simple-udp
+              image: gcr.io/agones-images/udp-server:0.21
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "20m"
+                limits:
+                  memory: "64Mi"
+                  cpu: "20m"
+---
+apiVersion: "agones.dev/v1"
+kind: Fleet
+metadata:
+  name: fleet-us-east-2-nova
+spec:
+  replicas: 2
+  template:
+    metadata:
+      # Labels only assigned to the GameServer
+      labels:
+        region: us-east-2
+        world: Nova
+    spec:
+      ports:
+        - name: default
+          containerPort: 7654
+      template:
+        metadata:
+          # Labels only assigned to the Pod
+          labels:
+            region: us-east-2
+            world: Nova
+        spec:
+          containers:
+            - name: simple-udp
+              image: gcr.io/agones-images/udp-server:0.21
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "20m"
+                limits:
+                  memory: "64Mi"
+                  cpu: "20m"
+---
+apiVersion: "agones.dev/v1"
+kind: Fleet
+metadata:
+  name: fleet-us-west-1-pandora
+spec:
+  replicas: 2
+  template:
+    metadata:
+      # Labels only assigned to the GameServer
+      labels:
+        region: us-west-1
+        world: Pandora
+    spec:
+      ports:
+        - name: default
+          containerPort: 7654
+      template:
+        metadata:
+          # Labels only assigned to the Pod
+          labels:
+            region: us-west-1
+            world: Pandora
+        spec:
+          containers:
+            - name: simple-udp
+              image: gcr.io/agones-images/udp-server:0.21
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "20m"
+                limits:
+                  memory: "64Mi"
+                  cpu: "20m"
+---
+apiVersion: "agones.dev/v1"
+kind: Fleet
+metadata:
+  name: fleet-us-west-2-orion
+spec:
+  replicas: 2
+  template:
+    metadata:
+      # Labels only assigned to the GameServer
+      labels:
+        region: us-west-2
+        world: Orion
+    spec:
+      ports:
+        - name: default
+          containerPort: 7654
+      template:
+        metadata:
+          # Labels only assigned to the Pod
+          labels:
+            region: us-west-2
+            world: Orion
+        spec:
+          containers:
+            - name: simple-udp
+              image: gcr.io/agones-images/udp-server:0.21
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "20m"
+                limits:
+                  memory: "64Mi"
+                  cpu: "20m"
