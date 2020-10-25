@@ -1,0 +1,129 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agones-openmatch-mmf
+  labels:
+    name: agones-openmatch-mmf
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8091
+      targetPort: 8091
+  selector:
+    app: agones-openmatch-mmf
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: agones-openmatch-mmf
+  name: agones-openmatch-mmf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agones-openmatch-mmf
+  template:
+    metadata:
+      labels:
+        app: agones-openmatch-mmf
+    spec:
+      containers:
+        - image: octops/agones-discover-openmatch:${TAG}
+          name: mmf
+          args:
+            - function
+            - --verbose
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8091
+          env:
+            # Value should match with container port. Clients like the Director will use this port
+            - name: OPENMATCH_MATCH_FUNCTION_PORT
+              value: "8091"
+            - name: OPENMATCH_QUERY_SERVICE_ADDR
+              value: "om-query.open-match.svc.cluster.local:50503"
+          resources:
+            requests:
+              cpu: "0.1"
+              memory: "50Mi"
+            limits:
+              cpu: "1"
+              memory: "100Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: agones-openmatch-director
+  name: agones-openmatch-director
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agones-openmatch-director
+  template:
+    metadata:
+      labels:
+        app: agones-openmatch-director
+    spec:
+      containers:
+        - image: octops/agones-discover-openmatch:${TAG}
+          name: director
+          args:
+            - director
+            - --agones-discover-url=http://agones-store.agones-store.svc.cluster.local:8081
+            - --verbose
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: OPENMATCH_BACKEND_ADDR
+              value: "om-backend.open-match.svc.cluster.local:50505"
+            - name: OPENMATCH_MATCH_FUNCTION_HOST
+              value: "agones-openmatch-mmf.agones-openmatch.svc.cluster.local"
+            - name: OPENMATCH_MATCH_FUNCTION_PORT
+              value: "8091"
+          resources:
+            requests:
+              cpu: "0.1"
+              memory: "50Mi"
+            limits:
+              cpu: "1"
+              memory: "100Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: agones-openmatch-players
+  name: agones-openmatch-players
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: agones-openmatch-players
+  template:
+    metadata:
+      labels:
+        app: agones-openmatch-players
+    spec:
+      containers:
+        - image: octops/agones-discover-openmatch:${TAG}
+          name: simulator
+          args:
+            - player
+            - simulate
+            - --players-pool=10
+            - --interval=5s
+            - --verbose
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: OPENMATCH_FRONTEND_ADDR
+              value: "om-frontend.open-match.svc.cluster.local:50504"
+          resources:
+            requests:
+              cpu: "0.1"
+              memory: "50Mi"
+            limits:
+              cpu: "1"
+              memory: "100Mi"
