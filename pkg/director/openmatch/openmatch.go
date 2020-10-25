@@ -95,7 +95,7 @@ func fetchMatches(ctx context.Context, client pb.BackendServiceClient, profile *
 		"command":   "fetch",
 	})
 
-	logger.Debugf("fetching matches for profile %s", profile.GetName())
+	logger.Infof("fetching matches for profile %s", profile.GetName())
 	stream, err := client.FetchMatches(ctx, req)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to fetch matches")
@@ -138,7 +138,7 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.Al
 			// assignTickets is a noop and should not compromise the whole allocation
 			assigned, err := assignTickets(ctx, req, client)
 			if err != nil {
-				logger.Error(errors.Wrapf(err, "failed assign ticket for matchId %s", match.MatchId))
+				logger.Warnf(errors.Wrapf(err, "failed assign ticket for matchId %s", match.MatchId).Error())
 			}
 
 			logger.Debugf("matchId %s got %d assignments assigned", match.MatchId, assigned)
@@ -220,42 +220,44 @@ func GenerateProfiles() director.GenerateProfilesFunc {
 		}
 
 		for _, world := range worlds {
-			region := TagFromStringSlice(regions)
+			for _, region := range regions {
+				//region := TagFromStringSlice(regions)
 
-			profile := &pb.MatchProfile{
-				Name: fmt.Sprintf("world_based_profile_%s_%s", world, region),
-				Pools: []*pb.Pool{
-					{
-						Name: "pool_mode_" + world,
-						TagPresentFilters: []*pb.TagPresentFilter{
-							{Tag: "mode.session"},
-						},
-						StringEqualsFilters: []*pb.StringEqualsFilter{
-							{StringArg: "world", Value: world},
-							{StringArg: "region", Value: region},
-						},
-						DoubleRangeFilters: []*pb.DoubleRangeFilter{
-							DoubleRangeFilterFromSlice(skillLevels),
-							DoubleRangeFilterFromSlice(latencies),
+				profile := &pb.MatchProfile{
+					Name: fmt.Sprintf("world_based_profile_%s_%s", world, region),
+					Pools: []*pb.Pool{
+						{
+							Name: "pool_mode_" + world,
+							TagPresentFilters: []*pb.TagPresentFilter{
+								{Tag: "mode.session"},
+							},
+							StringEqualsFilters: []*pb.StringEqualsFilter{
+								{StringArg: "world", Value: world},
+								{StringArg: "region", Value: region},
+							},
+							DoubleRangeFilters: []*pb.DoubleRangeFilter{
+								DoubleRangeFilterFromSlice(skillLevels),
+								DoubleRangeFilterFromSlice(latencies),
+							},
 						},
 					},
-				},
-			}
+				}
 
-			// build filter extensions
-			filter := extensions.AllocatorFilterExtension{
-				Labels: map[string]string{
-					"region": region,
-					"world":  world,
-				},
-				Fields: map[string]string{
-					"status.state": "Ready",
-				},
-			}
+				// build filter extensions
+				filter := extensions.AllocatorFilterExtension{
+					Labels: map[string]string{
+						"region": region,
+						"world":  world,
+					},
+					Fields: map[string]string{
+						"status.state": "Ready",
+					},
+				}
 
-			// Multiples Extensions: extensions.WithAny(filter.Any()).WithAny(foo.Any()).WithAny(bar.Any()).Extensions()
-			profile.Extensions = extensions.WithAny(filter.Any()).Extensions()
-			profiles = append(profiles, profile)
+				// Multiples Extensions: extensions.WithAny(filter.Any()).WithAny(foo.Any()).WithAny(bar.Any()).Extensions()
+				profile.Extensions = extensions.WithAny(filter.Any()).Extensions()
+				profiles = append(profiles, profile)
+			}
 		}
 
 		return profiles, nil
