@@ -20,6 +20,10 @@ type AgonesDiscoverAllocator struct {
 	Client AgonesDiscoverClient
 }
 
+type GameServersResponse struct {
+	Data []*GameServer `json:"data"`
+}
+
 // Allocate will only assign a GameServer to an Assignment if the Capacity (Players.Status.Capacity - Players.Stats.Count)
 // is <= the number of the TicketsIds part of the Assignment
 func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTicketsRequest) error {
@@ -116,12 +120,12 @@ func ExtractFilterFromExtensions(extension map[string]*any.Any) (*extensions.All
 }
 
 func ParseGameServersResponse(resp []byte) ([]*GameServer, error) {
-	var gameservers []*GameServer
+	var items GameServersResponse
 
-	err := json.Unmarshal(resp, &gameservers)
+	err := json.Unmarshal(resp, &items)
 	if err != nil {
 		return nil, err
 	}
 
-	return gameservers, nil
+	return items.Data, nil
 }
