@@ -1,0 +1,21 @@
+# Path to the config file that gives access to the Kubernetes cluster
+export KUBECONFIG=
+# Used for local deployment via SSH
+export REMOTE_SSH=
+export INFRASTRUCTURE_CONFIG_PATH=
+export REMOTE_CLUSTER_HOST=
+# Docker mostly used by the Makefile
+export DOCKER_IMAGE_TAR_NAME=
+export DOCKER_IMAGE_TAR_PATH=
+export TAG=$(git rev-parse --short HEAD)
+export DOCKER_IMAGE_NAME=
+# Open Match services addresses
+# The IP of the machine running the services and exposed via NodePort or 0.0.0.0 if using port-forward
+export OPENMATCH_FRONTEND_ADDR=IP:PORT
+export OPENMATCH_BACKEND_ADDR=IP:PORT
+export OPENMATCH_QUERY_SERVICE_ADDR=IP:PORT
+# The address where the MMF function can be reached by the OpenMatch backend service
+# The director does not require direct access to the MMF service.
+# Only the OpenMatch backend and query service require access to the MMF service
+export OPENMATCH_MATCH_FUNCTION_HOST=IP
+export OPENMATCH_MATCH_FUNCTION_PORT=PORT
