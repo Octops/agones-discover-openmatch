@@ -58,22 +58,22 @@ $ helm install agones --namespace agones-system --create-namespace agones/agones
 
 ### Open Match
 
-The manifests can be found on [deploy/openmatch](deploy/openmatch) folder, the manifests include Prometheus and Grafana. The manifests have been downloaded from the official OpenMatch repo. The only difference is the number of replicas since HA is not required. 
+The manifests to install Open Match can be found on [deploy/openmatch](deploy/openmatch) folder, the manifests also include Prometheus and Grafana. They have been downloaded from the official Open Match repo and the only difference is the number of replicas set to 1 for the core components. 
 
-To install all the OpenMatch components run the following command:
+To install all the Open Match components run the following command:
 ```bash
 $ ./deploy/openmatch/deploy.sh
 ```
 
-You can also check the official OpenMatch installation docs on https://open-match.dev/site/docs/installation/.
+You can also check the official Open Match installation docs on https://open-match.dev/site/docs/installation/.
 
 ## Development
 
 Below you can find details about the local setup used for developing and testing this project. These are not hard requirements though.
 
 - Dedicated machine for coding the required matchmaking components and extras
-- Local Kubernetes cluster running Agones and OpenMatch - Dedicated Linux Server
-- Player simulator, MMF and Director running locally but interacting with OpenMatch services deployed on Kubernetes
+- Local Kubernetes cluster running Agones and Open Match - Dedicated Linux Server
+- Player simulator, MMF and Director running locally but interacting with Open Match services deployed on Kubernetes
 - Services exposed via `NodePort` but the same could be achieved using `kubectl port-forward`
 
 During the development of this project I've exposed some Open Match services using services of type NodePort. That eliminates the need of using `port-forward` to communicate with those services running within the cluster.
@@ -85,7 +85,7 @@ $ kubectl -n open-match apply -f open-match-services-nodeport.yaml
 If you are a [direnv](https://direnv.net/) user check the [.envrc.template](.envrc.template) file.
 
 ## Matchmaking Components
-Below there is a list of all the services and components that put together deliver the match making system. They can be part of this repo, OpenMatch built in or third party services.
+Below there is a list of all the services and components that put together deliver the match making system. They can be part of this repo, Open Match built in or third party services.
 
 - Repo
     - Player Simulator
@@ -159,6 +159,38 @@ GET http://octops-discover.agones-openmatch.svc.cluster.local:8081/api/v1/gamese
 GET http://octops-discover.agones-openmatch.svc.cluster.local:8081/api/v1/gameservers?fields=status.state%3DReady&labels=region%3Dus-east-1%2Cworld%3DDune
 ``` 
 
+Example of a response:
+
+```json
+{
+    "data": [
+        {
+            "uid": "6cb220c0-ca9d-4164-bca9-a8aa1a879fd3",
+            "name": "fleet-us-east-1-dune-8g8dl-vw9l7",
+            "namespace": "default",
+            "resource_version": "161047",
+            "labels": {
+                "agones.dev/fleet": "fleet-us-east-1-dune",
+                "agones.dev/gameserverset": "fleet-us-east-1-dune-8g8dl",
+                "region": "us-east-1",
+                "world": "Dune"
+            },
+            "status": {
+                "state": "Ready",
+                "address": "192.168.0.110:7019",
+                "players": {
+                    "count": 0,
+                    "capacity": 10,
+                    "ids": null
+                }
+            }
+        }
+    ]
+}
+```
+
+The Allocator service will use the response from the API and assign a connection to ticket based on the GameServer capacity.
+
 Alternatively, the director could be extended and use any other sort of allocation mechanism. However, this is not covered by this project and future work may include that too.
 
 You can find more details of how this is done on https://agones.dev/site/docs/advanced/allocator-service/.
@@ -195,6 +227,8 @@ $ go run main.go director --interval 5s --verbose
 ```
 
 ## Install
+
+The steps below covers the deployment of the whole solution to a Kubernetes cluster.
 
 * Create namespace
 ```bash
@@ -286,8 +320,9 @@ $ kubectl -n open-match port-forward svc/open-match-grafana 3000
 
 ## Roadmap
 
-[ ] Improve test cases and coverage
-[ ] Implement Allocator using Agones Allocation Service via gRPC
-[ ] Instrument with Prometheus
-[ ] Explore different MMF logics
-[ ] ...
+- [ ] Improve test cases and coverage
+- [ ] Implement Allocator using Agones Allocation Service via gRPC
+- [ ] Instrument with Prometheus
+- [ ] Explore different MMF logics
+- [ ] Record demo
+- [ ] ...
