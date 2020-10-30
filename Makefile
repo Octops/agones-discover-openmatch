@@ -32,9 +32,9 @@ CURRENT_DIR := $(shell pwd)
 FILES    := $(shell find internal cmd -name '*.go' -type f -not -name '*.pb.go' -not -name '*_generated.go' -not -name '*_test.go')
 TESTS    := $(shell find internal cmd -name '*.go' -type f -not -name '*.pb.go' -not -name '*_generated.go' -name '*_test.go')
 
-OCTOPS_BIN := bin/agones-discover-openmatch
+OCTOPS_BIN := bin/agones-openmatch
 
-IMAGE_REPO=octops/agones-discover-openmatch
+IMAGE_REPO=octops/agones-openmatch
 DOCKER_IMAGE_TAG ?= $(IMAGE_REPO):${VERSION}
 RELEASE_TAG=0.1.0
 
