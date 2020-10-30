@@ -63,6 +63,7 @@ func (s *Server) Serve(ctx context.Context, port int32) error {
 	}
 
 	// TODO: PlayerCapacity 10 is a random number but must match with the GS Status.Players.Capacity
+	// The MMF should have a Register function that should be passed to the Server
 	s.RegisterMatchFunction(service.NewMatchFunctionService, functions.MatchByGamePlayersCapacity(10))
 
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
