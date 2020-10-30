@@ -283,3 +283,11 @@ Check metrics from Open Match services using the Grafana dashboards deployed tog
 $ kubectl -n open-match port-forward svc/open-match-grafana 3000
 # Username: Admin Password: openmatch
 ```
+
+## Roadmap
+
+[ ] Improve test cases and coverage
+[ ] Implement Allocator using Agones Allocation Service via gRPC
+[ ] Instrument with Prometheus
+[ ] Explore different MMF logics
+[ ] ...
