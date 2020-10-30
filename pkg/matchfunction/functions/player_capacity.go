@@ -29,18 +29,6 @@ func MatchByGamePlayersCapacity(playerCapacity int) MakeMatchesFunc {
 			return nil, err
 		}
 
-		//t := []*pb.Ticket{}
-		//for _, tickets := range poolTickets {
-		//	for _, ticket := range tickets {
-		//		t = append(t, ticket)
-		//	}
-		//}
-		//
-		//id := fmt.Sprintf("profile-%v-time-%v", profile.GetName(), uuid.New().String())
-		//matches := append([]*pb.Match{}, CreateMatchForTickets(id, profile.GetName(), t...))
-		//runtime.Logger().Debugf("total matches for profile %s tickets %d: %d", profile.GetName(), len(matches), len(t))
-		//return matches, nil
-
 		logger := runtime.Logger().WithFields(logrus.Fields{
 			"component": "match_function",
 			"command":   "matchmaker",
