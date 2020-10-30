@@ -1,0 +1,172 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-svc
+  namespace: agones-openmatch
+  labels:
+    name: mongodb-svc
+spec:
+  type: ClusterIP
+  ports:
+    - port: 27017
+      targetPort: 27017
+  selector:
+    app: mongodb
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: agones-openmatch
+  labels:
+    app: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  serviceName: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:4.4.1
+          ports:
+            - containerPort: 27017
+          resources:
+            requests:
+              cpu: "1"
+              memory: "500Mi"
+            limits:
+              cpu: "3"
+              memory: "4Gi"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: octops-discover-broadcaster
+  labels:
+    app: octops-discover
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: octops-discover-broadcaster
+  labels:
+    app: octops-discover-broadcaster
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "watch"]
+  - apiGroups: ["agones.dev"]
+    resources: ["gameservers","fleets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: octops-discover-broadcaster
+  labels:
+    app: octops-discover-broadcaster
+subjects:
+  - kind: User
+    name: system:serviceaccount:agones-openmatch:octops-discover-broadcaster
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: octops-discover-broadcaster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: octops-discover
+  labels:
+    name: octops-discover
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8081
+      targetPort: 8081
+  selector:
+    app: octops-discover
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: octops-discover-broadcaster
+  name: octops-discover-broadcaster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: octops-discover-broadcaster
+  template:
+    metadata:
+      labels:
+        app: octops-discover-broadcaster
+    spec:
+      serviceAccountName: octops-discover-broadcaster
+      containers:
+        - image: octops/discover:latest
+          name: broadcaster
+          args:
+            - broadcaster
+            - --init-store=true
+            - --sync-period=15s
+            - --max-workers=10
+            - --verbose
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          env:
+            - name: MONGODB_ADDR
+              value: mongodb-svc.agones-openmatch.svc.cluster.local
+          resources:
+            requests:
+              cpu: "0.1"
+              memory: "50Mi"
+            limits:
+              cpu: "1"
+              memory: "100Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: octops-discover
+  name: octops-discover
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: octops-discover
+  template:
+    metadata:
+      labels:
+        app: octops-discover
+    spec:
+      containers:
+        - image: octops/discover:latest
+          name: octops-discover
+          args:
+            - server
+            - --verbose
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          env:
+            - name: MONGODB_ADDR
+              value: mongodb-svc.agones-openmatch.svc.cluster.local
+          resources:
+            requests:
+              cpu: "0.1"
+              memory: "50Mi"
+            limits:
+              cpu: "1"
+              memory: "100Mi"

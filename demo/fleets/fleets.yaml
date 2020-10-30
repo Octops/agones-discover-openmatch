@@ -7,11 +7,13 @@ spec:
   replicas: 2
   template:
     metadata:
-      # Labels only assigned to the GameServer
       labels:
         region: us-east-1
         world: Dune
     spec:
+      players:
+        # set this GameServer's initial player capacity to 10
+        initialCapacity: 10
       ports:
         - name: default
           containerPort: 7654
@@ -41,11 +43,13 @@ spec:
   replicas: 2
   template:
     metadata:
-      # Labels only assigned to the GameServer
       labels:
         region: us-east-2
         world: Nova
     spec:
+      players:
+        # set this GameServer's initial player capacity to 10
+        initialCapacity: 10
       ports:
         - name: default
           containerPort: 7654
@@ -80,6 +84,9 @@ spec:
         region: us-west-1
         world: Pandora
     spec:
+      players:
+        # set this GameServer's initial player capacity to 10
+        initialCapacity: 10
       ports:
         - name: default
           containerPort: 7654
@@ -114,6 +121,9 @@ spec:
         region: us-west-2
         world: Orion
     spec:
+      players:
+        # set this GameServer's initial player capacity to 10
+        initialCapacity: 10
       ports:
         - name: default
           containerPort: 7654
