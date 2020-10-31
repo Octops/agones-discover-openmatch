@@ -18,14 +18,6 @@ You can find great documentation about each one of these projects on their websi
 - https://agones.dev/site/
 - https://open-match.dev/site/
 
-## Why this project has been built
-
-- Personal Challenge
-- Learning
-- Curiosity
-- Technical Stretching
-- Collaboration and Knowledge Share
-
 ## Requirements
 If you want to see the project in action, please make sure you have the requirements set. Basically you need a Kubernetes running Agones 1.9.0 and Open Match 1.0.0.
 
