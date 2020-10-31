@@ -1,10 +1,8 @@
 # Matchmaking System using Agones and Open Match
 
-This project serves as an example of how one could create a matchmaking system using Agones and Open Match.
+This project aims to be an example of how a matchmaking system using Agones and Open Match could be implemented. It is heavily inspired by https://open-match.dev/site/docs/tutorials.
 
-Its source of inspiration is a hypothetical game where players will be matched together based on their skills, latency, region and the desired world they want to play. 
-
-The GameServers could be deployed on a single or multi-cluster topology.
+The matchmaking logic and allocation process assume a hypothetical game where players will be matched together based on their skills, latency, region, the desired world they want to play and the gameserver capacity. 
 
 This project does not target any game, company or specific audience. It has been mostly the result of a learning process that put together different tools and technologies.
 
@@ -16,28 +14,28 @@ Real games require way more input information, and a more complex matchmaking al
 ### Open Match
 > Open Match is a flexible match making system built to scale with your game.
 
-You can find great documentation about each about these projects on their websites.
+You can find great documentation about each one of these projects on their websites.
 - https://agones.dev/site/
 - https://open-match.dev/site/
 
 ## Why this project has been built
 
-- Challenge
+- Personal Challenge
 - Learning
 - Curiosity
 - Technical Stretching
-- Collaboration
+- Collaboration and Knowledge Share
 
 ## Requirements
-If you want to see the project in action, please make sure you have the requirements set. Basically you need a Kubernetes running Agones.
+If you want to see the project in action, please make sure you have the requirements set. Basically you need a Kubernetes running Agones 1.9.0 and Open Match 1.0.0.
 
 ### Kubernetes cluster
 
-This project will work on any Kubernetes cluster that is supported by Agones 1.9.0. That could be a cluster running in the cloud or locally. There are different approaches one can take for cluster provisioning.
+This project will work on any Kubernetes cluster that is supported by Agones 1.9.0 (K8S 1.16). That could be a cluster running in the cloud or locally.
 
-This project has been developed and tested using a Kubernetes cluster provisioned with [k3s](https://k3s.io/) on separated Linux server. 
+The development and testing has been done using a Kubernetes cluster provisioned with [k3s](https://k3s.io/) on a separated Linux server. 
 
-However, one can get the exactly same results running on [Minikube](https://github.com/kubernetes/minikube), [Kind](https://kind.sigs.k8s.io/) or any cloud environment.
+However, the exactly same results could be achieved running on [Minikube](https://github.com/kubernetes/minikube), [Kind](https://kind.sigs.k8s.io/) or any cloud environment.
 
 Running a Kubernetes cluster provisioned with k3s (Linux only):
 ```bash
@@ -50,6 +48,8 @@ curl -sfL https://get.k3s.io | sh -s - --docker
 
 This project has been developed and tested using Agones 1.9.0. I can't guarantee compatibility to any previous version since it has not been tested.
 
+Although the documentation covers the deployment on a single cluster, the solution can be deployed on a multi cluster topology. The documentation for that scenario will be added soon.
+
 The [PlayerTracking](https://agones.dev/site/docs/guides/player-tracking/) will provide the information about Players (Capacity and Count) which is used by the Allocator when looking for available gameservers. Different matchmaking systems might not require that Agones feature. 
 - Enable Player Capacity feature gate: 
 ```bash
@@ -58,7 +58,9 @@ $ helm install agones --namespace agones-system --create-namespace agones/agones
 
 ### Open Match
 
-The manifests to install Open Match can be found on [deploy/openmatch](deploy/openmatch) folder, the manifests also include Prometheus and Grafana. They have been downloaded from the official Open Match repo and the only difference is the number of replicas set to 1 for the core components. 
+The manifests to install Open Match 1.0.0 can be found on [deploy/openmatch](deploy/openmatch) folder, they also include Prometheus and Grafana. 
+
+These files have been downloaded from the official Open Match repo. The only difference is the number of replicas set to 1 for the core components. 
 
 To install all the Open Match components run the following command:
 ```bash
@@ -69,7 +71,7 @@ You can also check the official Open Match installation docs on https://open-mat
 
 ## Development
 
-Below you can find details about the local setup used for developing and testing this project. These are not hard requirements though.
+Below you can find details about the local setup used for the development and testing of this project.
 
 - Dedicated machine for coding the required matchmaking components and extras
 - Local Kubernetes cluster running Agones and Open Match - Dedicated Linux Server
@@ -91,7 +93,7 @@ Below there is a list of all the services and components that put together deliv
     - Player Simulator
     - Game FrontEnd
     - Match Making Function (a.k.a MMF)
-    - Director
+    - Director and Allocator
 
 - Open Match
     - Builtin: Backend, Frontend, Query Service, Evaluator, Synchronizer
@@ -111,7 +113,7 @@ The scenario considered for the matchmaking takes into consideration the followi
     - Fleet: us-west-2: Orion 
 - Players can join if a GameServer still has enough free capacity (Players.Capacity - Players.Count). Check the [PlayerTracking](https://agones.dev/site/docs/guides/player-tracking/) feature.
 - Player's tickets will be grouped by Region, World, Skill and Latency. Skill and Latency are range based.
-- Game Client provides the desired match and player's info: Region, World, Skill and Latency. There nothing crazy going on here. The Player simulator just pick up a fake latency from a range and assign to the ticket.
+- Game Client provides the desired match and player's info: Region, World, Skill and Latency. There is nothing crazy going on here. The Player simulator just pick up a fake latency from a range and assign to the ticket.
 
 ## Match Making Rules
  
@@ -132,7 +134,9 @@ The scenario considered for the matchmaking takes into consideration the followi
 
 ## Allocation Rules
     
-The allocation service will try to find a GameServer that matches the criteria found on the `Extension` field of the `AssignTicketsRequest`. This information must match with Labels (Region and World) from the Fleet and GameServer:
+The allocation service will try to find a GameServer that matches the criteria found on the `Extension` field of the `AssignTicketsRequest`. This information must match with Labels (Region and World) from the Fleet and GameServer.
+
+Rules: 
    - GameServer running on the desired Region
    - GameServer hosting the desired World
    - GameServer Capacity can accommodate all the tickets from the match
@@ -140,7 +144,9 @@ The allocation service will try to find a GameServer that matches the criteria f
 
 ## Looking for GameServers using the Octops Discover Service
 
-The Octops Discover service works like a central GameServers state store.
+The Octops Discover service works like a central GameServers state store. 
+
+One of the core components of the Octops Discover is the https://github.com/Octops/agones-event-broadcaster together with a data store and an HTTP API to expose the GameServers states.
 
 The director leverages the searching of the GameServers to the Octops/Discover service.
 
@@ -150,7 +156,7 @@ This service exposes an HTTP API to be consumed by clients looking for GameServe
 
 The manifest to deploy the service can be found on [deploy/third-party/octops.yaml](deploy/third-party/octops.yaml).
 
-An example of how to query for GameServers is to request the endpoint passing the right querystring params.
+An example of how to query for GameServers is shown below. The client requests the service endpoint passing the right query params.
 ```bash
 # Decoded Version
 GET http://octops-discover.agones-openmatch.svc.cluster.local:8081/api/v1/gameservers?fields=status.state=Ready&labels=region=us-east-1,world=Dune
@@ -189,23 +195,25 @@ Example of a response:
 }
 ```
 
-The Allocator service will use the response from the API and assign a connection to ticket based on the GameServer capacity.
+The Allocator service will use the list of GameServers from the response and assign a connection to ticket based on the GameServer capacity. If any GameServer can accommodate the ticket, the connection will not be assigned.
 
-Alternatively, the director could be extended and use any other sort of allocation mechanism. However, this is not covered by this project and future work may include that too.
+Alternatively, the director could be extended and use any other sort of allocation mechanism. However, this is not covered by this project due to the game use case presented previously. Future work may include different games scenarios and will explore alternatives to the Octops Discover.
 
-You can find more details of how this is done on https://agones.dev/site/docs/advanced/allocator-service/.
+You can find more details of how to allocate GameServers using the Agones Allocation Service on https://agones.dev/site/docs/advanced/allocator-service/.
 
 ## Running
-All the components are built into a single binary. The passing argument when running the binary together with a few flags will start the proper process.
+All the components will be built into a single binary. The passing argument when running the binary together with a few flags will start the proper process.
+
+Make sure you have the expected `environment variabels` set and pointing to valid endpoints. Check the [.envrc.template](.envrc.template) file for references. 
 
 **Important**
-Running this project locally requires the Octops Discover service.
+Running this project requires the Octops Discover service. Details about this project and service will be added soon.
 
 * Deploy Octops Discover Service
 ```bash
 $ kubectl -n agones-openmatch apply -f deploy/third-party/octops.yaml
 
-# port-forward
+# port-forward - This endpoint will be used by the Director when allocating gameservers
 $ kubectl -n agones-openmatch port-forward svc/octops-discover 8081
 ```
 
@@ -283,13 +291,13 @@ time="2020-10-27T18:34:03Z" level=info msg="fetching matches for profile world_b
 ```
 
 The logs from the Director will show 2 possible situations:
-- A match has been created but could not be assigned because a GameServer could not be found, or it is not available.
+- A match has been created but could not be assigned because a GameServer could not be found (based on the criteria region and world), or it does not have capacity to accommodate all the Players from the Ticket.
 ```bash
 # There is no Fleet hosting Orion on us-east-1
 time="2020-10-25T17:10:39Z" level=debug msg="gameservers not found for request with filter map[fields:status.state=Ready labels:region=us-east-1,world=Orion]" component=allocator
 ```
 
-- A GameServer matches with the match criteria (world, region) and the connection has been assigned to the tickets.
+- A GameServer matches with the match criteria (world, region and capacity) and the connection has been assigned to the tickets.
 ```bash
 # GameServer hosting Orion on us-west-2 assigned to 8 Players
 time="2020-10-25T17:09:14Z" level=info msg="gameserver fleet-us-west-2-orion-q42z5-8sjff connection 192.168.0.10:7015 assigned to request, total tickets: 8" component=allocator
@@ -325,4 +333,18 @@ $ kubectl -n open-match port-forward svc/open-match-grafana 3000
 - [ ] Instrument with Prometheus
 - [ ] Explore different MMF logics
 - [ ] Record demo
-- [ ] ...
+- [ ] Document multi cluster deployment
+- [ ] Extract Profile Generator to a service
+- [ ] Extract Allocator to a service
+- [ ] Delete assigned tickets - Player Simulator
+- [ ] Add CI
+
+## Contributions or Feedbacks
+
+Issues and pull requests are welcome.
+
+The project's goal is not to be a plug and play matchmaking system that works for every single use case. Instead it could inspire other folks who are looking for some examples which use the same or similar stack.
+
+Some components could be easily extracted or extended in a way that it would cover different uses cases.
+
+You can reach out on Agones or Open Match Slack if you have any question.

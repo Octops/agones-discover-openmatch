@@ -9,6 +9,7 @@ export DOCKER_IMAGE_TAR_NAME=
 export DOCKER_IMAGE_TAR_PATH=
 export TAG=$(git rev-parse --short HEAD)
 export DOCKER_IMAGE_NAME=
+# ################################
 # Open Match services addresses
 # The IP of the machine running the services and exposed via NodePort or 0.0.0.0 if using port-forward
 export OPENMATCH_FRONTEND_ADDR=IP:PORT
