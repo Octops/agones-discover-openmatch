@@ -30,7 +30,7 @@ spec:
         app: agones-openmatch-mmf
     spec:
       containers:
-        - image: octops/agones-openmatch:latest
+        - image: octops/agones-openmatch:${TAG}
           name: mmf
           args:
             - function
@@ -69,7 +69,7 @@ spec:
         app: agones-openmatch-director
     spec:
       containers:
-        - image: octops/agones-openmatch:latest
+        - image: octops/agones-openmatch:${TAG}
           name: director
           args:
             - director
@@ -108,7 +108,7 @@ spec:
         app: agones-openmatch-players
     spec:
       containers:
-        - image: octops/agones-openmatch:latest
+        - image: octops/agones-openmatch:${TAG}
           name: simulator
           args:
             - player
