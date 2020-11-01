@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	GET_GAMESERVER_PATH = "api/v1/gameservers"
+	GET_GAMESERVER_PATH = "/api/v1/gameservers"
 )
 
 type AgonesDiscoverClientHTTP struct {
@@ -34,8 +34,8 @@ func NewAgonesDiscoverClientHTTP(serverURI string) (*AgonesDiscoverClientHTTP, e
 }
 
 func (c *AgonesDiscoverClientHTTP) ListGameServers(ctx context.Context, filter map[string]string) ([]byte, error) {
-	u := BuildQueryParams(GET_GAMESERVER_PATH, filter)
-	resp, err := c.cli.Get(fmt.Sprintf("%s/%s", c.ServerURI, u))
+	uri := fmt.Sprintf("%s%s", c.ServerURI, BuildQueryParams(GET_GAMESERVER_PATH, filter))
+	resp, err := c.cli.Get(uri)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list gameservers")
 	}
@@ -53,6 +53,10 @@ func (c *AgonesDiscoverClientHTTP) ListGameServers(ctx context.Context, filter m
 }
 
 func BuildQueryParams(path string, filter map[string]string) string {
+	if len(filter) == 0 {
+		return path
+	}
+
 	return fmt.Sprintf("%s?%s", path, EncodeFilter(filter))
 }
 
