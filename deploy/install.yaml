@@ -73,7 +73,7 @@ spec:
           name: director
           args:
             - director
-            - --agones-discover-url=http://octops-discover.agones-openmatch.svc.cluster.local:8081
+            - --octops-discover-url=http://octops-discover.agones-openmatch.svc.cluster.local:8081
             - --verbose
           imagePullPolicy: IfNotPresent
           env:

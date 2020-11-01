@@ -27,7 +27,7 @@ import (
 
 var (
 	intervalDirector  string
-	agonesDiscoverURL string
+	octopsDiscoverURL string
 )
 
 // directorCmd represents the director command
@@ -47,9 +47,9 @@ to quickly create a Cobra application.`,
 
 		logger.Info("starting OpenMatch Director")
 		// TODO: Refactor using Flags and Registry
-		client, err := allocator.NewAgonesDiscoverClientHTTP(agonesDiscoverURL)
+		client, err := allocator.NewAgonesDiscoverClientHTTP(octopsDiscoverURL)
 		if err != nil {
-			logger.Fatal(errors.Wrap(err, "failed to creating Agones Discover Client"))
+			logger.Fatal(errors.Wrap(err, "failed to creating Octops Discover Client"))
 		}
 
 		agonesAllocator := allocator.NewAllocatorService(&allocator.AgonesDiscoverAllocator{
@@ -65,5 +65,5 @@ func init() {
 	rootCmd.AddCommand(directorCmd)
 
 	directorCmd.Flags().StringVar(&intervalDirector, "interval", "5s", "interval the Director will fetch matches")
-	directorCmd.Flags().StringVar(&agonesDiscoverURL, "agones-discover-url", "http://localhost:8081", "the Agones Discover server URL")
+	directorCmd.Flags().StringVar(&octopsDiscoverURL, "agones-discover-url", "http://localhost:8081", "the Octops Discover server URL")
 }
