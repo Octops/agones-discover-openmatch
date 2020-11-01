@@ -27,13 +27,9 @@ import (
 // functionCmd represents the function command
 var functionCmd = &cobra.Command{
 	Use:   "function",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Start the Match Function Server",
+	Long: `The Match Function is the component that implements the core matchmaking logic. 
+A Match Function receives a MatchProfile as input should return matches for this MatchProfile.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := runtime.NewLogger(verbose)
 		mmfServer, err := matchfunction.NewServer()
