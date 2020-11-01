@@ -113,7 +113,7 @@ spec:
     spec:
       serviceAccountName: octops-discover-broadcaster
       containers:
-        - image: octops/discover:latest
+        - image: octops/discover:0.2.1
           name: broadcaster
           args:
             - broadcaster
@@ -152,7 +152,7 @@ spec:
         app: octops-discover
     spec:
       containers:
-        - image: octops/discover:latest
+        - image: octops/discover:0.2.1
           name: octops-discover
           args:
             - server
