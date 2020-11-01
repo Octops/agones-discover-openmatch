@@ -33,13 +33,10 @@ var (
 // directorCmd represents the director command
 var directorCmd = &cobra.Command{
 	Use:   "director",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "The Director fetches Matches from Open Match for a set of MatchProfiles",
+	Long: `The Director fetches Matches from Open Match for a set of MatchProfiles.
+For these matches, it fetches Game Server from a DGS allocation system. 
+It can then communicate the Assignments back to the Game Frontend.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := runtime.NewLogger(verbose).WithField("component", "director")
 		ctx, cancel := context.WithCancel(context.Background())
@@ -65,5 +62,5 @@ func init() {
 	rootCmd.AddCommand(directorCmd)
 
 	directorCmd.Flags().StringVar(&intervalDirector, "interval", "5s", "interval the Director will fetch matches")
-	directorCmd.Flags().StringVar(&octopsDiscoverURL, "agones-discover-url", "http://localhost:8081", "the Octops Discover server URL")
+	directorCmd.Flags().StringVar(&octopsDiscoverURL, "octops-discover-url", "http://localhost:8081", "the Octops Discover server URL")
 }
