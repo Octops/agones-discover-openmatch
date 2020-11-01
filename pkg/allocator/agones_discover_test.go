@@ -79,10 +79,14 @@ func TestAgonesDiscoverAllocator_SetConnection(t *testing.T) {
 				Client: client,
 			}
 
-			client.On("ListGameServers", context.Background(), filter.Map()).
-				Return(createRawGameServersWithLabels(tc.gameServers, filter.Labels), nil)
+			gs := createGameServersWithCapacity(tc.gameServers, 0, 0, filter.Labels)
+			_, resp, err := createGameServersResponse(gs)
+			require.NoError(t, err)
 
-			err := discoverAllocator.Allocate(context.Background(), tc.ticketRequest)
+			client.On("ListGameServers", context.Background(), filter.Map()).
+				Return(resp, nil)
+
+			err = discoverAllocator.Allocate(context.Background(), tc.ticketRequest)
 			require.NoError(t, err)
 			client.AssertExpectations(t)
 
@@ -242,11 +246,11 @@ func TestAgonesDiscoverAllocator_Allocate(t *testing.T) {
 			}
 
 			gameservers := createGameServersWithCapacity(tc.gameservers, tc.playerCapacity, tc.playerCount, map[string]string{})
-			gs, err := json.Marshal(gameservers)
+			_, resp, err := createGameServersResponse(gameservers)
 			require.NoError(t, err)
 
 			client.On("ListGameServers", context.Background(), filter.Map()).
-				Return(gs, tc.wantErr.err)
+				Return(resp, tc.wantErr.err)
 
 			req := &pb.AssignTicketsRequest{
 				Assignments: generateAssignments(tc.assignments, generateTicketsIds(tc.tickets), filter),
@@ -295,6 +299,19 @@ type mockAgonesDiscoverClient struct {
 func (m *mockAgonesDiscoverClient) ListGameServers(ctx context.Context, filter map[string]string) ([]byte, error) {
 	args := m.Called(ctx, filter)
 	return args.Get(0).([]byte), args.Error(1)
+}
+
+func createGameServersResponse(gameservers []*GameServer) (*GameServersResponse, []byte, error) {
+	resp := &GameServersResponse{
+		Data: gameservers,
+	}
+
+	b, err := json.Marshal(resp)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return resp, b, nil
 }
 
 func createGameServersWithCapacity(count, playerCapacity, playerCount int, labels map[string]string) []*GameServer {
