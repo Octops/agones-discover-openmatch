@@ -64,7 +64,9 @@ func EncodeFilter(filter map[string]string) string {
 	params := url.Values{}
 
 	for k, v := range filter {
-		params.Add(k, v)
+		if len(v) > 0 {
+			params.Add(k, v)
+		}
 	}
 
 	return params.Encode()
