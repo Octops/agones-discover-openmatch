@@ -2,23 +2,31 @@ package extensions
 
 import (
 	"encoding/json"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
 type Extension struct {
 	any map[string]*any.Any
 }
 
-func ToAny(typeURL string, value interface{}) *any.Any {
+func ToAny(value interface{}) *any.Any {
 	b, err := json.Marshal(value)
 	if err != nil {
 		return nil
 	}
 
-	return &any.Any{
-		TypeUrl: typeURL,
-		Value:   b,
+	bValues := &wrappers.BytesValue{
+		Value: b,
 	}
+
+	mAny, err := ptypes.MarshalAny(bValues)
+	if err != nil {
+		return nil
+	}
+
+	return mAny
 }
 
 func WithAny(anyMap map[string]*any.Any) Extension {
