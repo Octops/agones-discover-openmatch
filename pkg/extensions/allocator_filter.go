@@ -15,7 +15,7 @@ type AllocatorFilterExtension struct {
 
 func (f AllocatorFilterExtension) Any() map[string]*any.Any {
 	return map[string]*any.Any{
-		"filter": ToAny("agones.openmatch.filter", f),
+		"filter": ToAny(f),
 	}
 }
 
