@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
 	"github.com/Octops/agones-discover-openmatch/pkg/extensions"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/pkg/errors"
 	"open-match.dev/open-match/pkg/pb"
 )
@@ -34,7 +33,7 @@ func (c *AgonesDiscoverAllocator) Allocate(ctx context.Context, req *pb.AssignTi
 			return err
 		}
 
-		filter, err := ExtractFilterFromExtensions(assignmentGroup.Assignment.Extensions)
+		filter, err := extensions.ExtractFilterFromExtensions(assignmentGroup.Assignment.Extensions)
 		if err != nil {
 			return errors.Wrap(err, "the assignment does not have a valid filter extension")
 		}
@@ -110,19 +109,6 @@ func HasCapacity(group *pb.AssignmentGroup, gs *GameServer) bool {
 	capacity := gs.Status.Players.Capacity - gs.Status.Players.Count
 	// If Count and Capacity are not it should allow allocation. This is just a possible scenario to be reviewed in the future
 	return (capacity >= int64(len(group.TicketIds))) || (gs.Status.Players.Count == 0 && gs.Status.Players.Capacity == 0)
-}
-
-func ExtractFilterFromExtensions(extension map[string]*any.Any) (*extensions.AllocatorFilterExtension, error) {
-	if _, ok := extension["filter"]; !ok {
-		return nil, nil
-	}
-
-	filter, err := extensions.ToFilter(extension["filter"])
-	if err != nil {
-		return nil, err
-	}
-
-	return filter, nil
 }
 
 func ParseGameServersResponse(resp []byte) ([]*GameServer, error) {

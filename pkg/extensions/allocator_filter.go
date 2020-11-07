@@ -29,6 +29,19 @@ func (f *AllocatorFilterExtension) Map() map[string]string {
 	return m
 }
 
+func ExtractFilterFromExtensions(extension map[string]*any.Any) (*AllocatorFilterExtension, error) {
+	if _, ok := extension["filter"]; !ok {
+		return nil, nil
+	}
+
+	filter, err := ToFilter(extension["filter"])
+	if err != nil {
+		return nil, err
+	}
+
+	return filter, nil
+}
+
 func ToFilter(obj *any.Any) (*AllocatorFilterExtension, error) {
 	var filter AllocatorFilterExtension
 
