@@ -117,7 +117,7 @@ func ExtractFilterFromExtensions(extension map[string]*any.Any) (*extensions.All
 		return nil, nil
 	}
 
-	filter, err := extensions.ToFilter(extension["filter"].Value)
+	filter, err := extensions.ToFilter(extension["filter"])
 	if err != nil {
 		return nil, err
 	}

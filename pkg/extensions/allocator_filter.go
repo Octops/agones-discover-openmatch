@@ -3,7 +3,9 @@ package extensions
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/pkg/errors"
 	"strings"
 )
@@ -27,13 +29,18 @@ func (f *AllocatorFilterExtension) Map() map[string]string {
 	return m
 }
 
-func ToFilter(value []byte) (*AllocatorFilterExtension, error) {
+func ToFilter(obj *any.Any) (*AllocatorFilterExtension, error) {
 	var filter AllocatorFilterExtension
 
-	value = value[2:]
-	err := json.Unmarshal(value, &filter)
+	message := &wrappers.BytesValue{}
+	err := ptypes.UnmarshalAny(obj, message)
 	if err != nil {
-		return nil, errors.Wrap(err, "can't parse to filter")
+		return nil, errors.Wrap(err, "can't parse Any to Message")
+	}
+
+	err = json.Unmarshal(message.Value, &filter)
+	if err != nil {
+		return nil, errors.Wrap(err, "can't parse Any to Filter")
 	}
 
 	return &filter, nil
