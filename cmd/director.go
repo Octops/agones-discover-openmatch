@@ -43,19 +43,28 @@ It can then communicate the Assignments back to the Game Frontend.`,
 		runtime.SetupSignal(cancel)
 
 		logger.Info("starting OpenMatch Director")
-		// TODO: Refactor using Flags and Registry
-		client, err := allocator.NewAgonesDiscoverClientHTTP(octopsDiscoverURL)
+		agonesAllocator, err := BuildAgonesAllocator()
 		if err != nil {
-			logger.Fatal(errors.Wrap(err, "failed to creating Octops Discover Client"))
+			logger.Fatal(err)
 		}
 
-		agonesAllocator := allocator.NewAllocatorService(&allocator.AgonesDiscoverAllocator{
-			Client: client,
-		})
 		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure, intervalDirector, agonesAllocator); err != nil {
 			logger.Fatal(errors.Wrap(err, "failed to start the Director"))
 		}
 	},
+}
+
+func BuildAgonesAllocator() (*allocator.AllocatorService, error) {
+
+	// TODO: Refactor using Flags and Registry
+	client, err := allocator.NewAgonesDiscoverClientHTTP(octopsDiscoverURL)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create AgonesDiscoverClientHTTP")
+	}
+
+	return allocator.NewAllocatorService(&allocator.AgonesDiscoverAllocator{
+		Client: client,
+	}), nil
 }
 
 func init() {

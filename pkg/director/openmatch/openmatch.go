@@ -33,7 +33,7 @@ type FetchResponse struct {
 
 type ConnFunc func() (*grpc.ClientConn, error)
 
-func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc, interval string, allocatorService allocator.AllocatorService) error {
+func RunDirector(ctx context.Context, logger *logrus.Entry, dial ConnFunc, interval string, allocatorService *allocator.AllocatorService) error {
 	conn, err := dial()
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to Open Match Backend")
@@ -118,7 +118,7 @@ func fetchMatches(ctx context.Context, client pb.BackendServiceClient, profile *
 	return result, nil
 }
 
-func AssignTickets(client pb.BackendServiceClient, allocatorService allocator.AllocatorService) director.AssignFunc {
+func AssignTickets(client pb.BackendServiceClient, allocatorService *allocator.AllocatorService) director.AssignFunc {
 	return func(ctx context.Context, matches []*pb.Match) error {
 		logger := runtime.Logger().WithFields(logrus.Fields{
 			"component": "director",
