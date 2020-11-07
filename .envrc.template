@@ -20,3 +20,5 @@ export OPENMATCH_QUERY_SERVICE_ADDR=IP:PORT
 # Only the OpenMatch backend and query service require access to the MMF service
 export OPENMATCH_MATCH_FUNCTION_HOST=IP
 export OPENMATCH_MATCH_FUNCTION_PORT=PORT
+# Allocator Certs
+export CERTS_PATH=
