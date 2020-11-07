@@ -11,6 +11,7 @@ type Extension struct {
 	any map[string]*any.Any
 }
 
+// Reference: https://stackoverflow.com/a/62585911
 func ToAny(value interface{}) *any.Any {
 	b, err := json.Marshal(value)
 	if err != nil {
