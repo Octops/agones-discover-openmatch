@@ -153,7 +153,7 @@ func assignTickets(ctx context.Context, req *pb.AssignTicketsRequest, assigner A
 	assignments := CleanUpAssignmentsWithoutConnection(req.Assignments)
 
 	if len(assignments) == 0 {
-		return 0, fmt.Errorf("the AssignTicketsRequest does not have assignments with connections set")
+		return 0, fmt.Errorf("no assignments with connections set")
 	}
 
 	req.Assignments = assignments
