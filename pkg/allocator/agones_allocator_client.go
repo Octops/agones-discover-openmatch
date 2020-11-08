@@ -13,9 +13,12 @@ import (
 )
 
 var (
-	ErrKeyFileInvalid    = errors.New("the private key file for the client certificate is invalid")
-	ErrCertFileInvalid   = errors.New("the public key file for the client certificate is invalid")
-	ErrCaCertFileInvalid = errors.New("the CA cert file for server signing certificate is invalid")
+	ErrKeyFileInvalid              = errors.New("the private key file for the client certificate is invalid")
+	ErrCertFileInvalid             = errors.New("the public key file for the client certificate is invalid")
+	ErrCaCertFileInvalid           = errors.New("the CA cert file for server signing certificate is invalid")
+	ErrAllocatorServiceHostInvalid = errors.New("the Allocator Service host is invalid")
+	ErrAllocatorServicePortInvalid = errors.New("the Allocator Service port is invalid")
+	ErrAllocatorServiceNamespace   = errors.New("the Allocator Service namespace is invalid")
 )
 
 type AgonesAllocatorClientConfig struct {
@@ -28,12 +31,50 @@ type AgonesAllocatorClientConfig struct {
 	MultiCluster         bool
 }
 
-// gRPC Client for Agones Allocator Service
+// AgonesAllocatorClient is the gRPC Client for Agones Allocator Service
 type AgonesAllocatorClient struct {
-	Config *AgonesAllocatorClientConfig
+	Config   *AgonesAllocatorClientConfig
+	DialOpts grpc.DialOption
 }
 
 func NewAgonesAllocatorClient(config *AgonesAllocatorClientConfig) (*AgonesAllocatorClient, error) {
+	if err := validateClientConfig(config); err != nil {
+		return nil, err
+	}
+
+	cert, key, ca, err := loadCertificates(config)
+	if err != nil {
+		return nil, err
+	}
+
+	dialOpts, err := createRemoteClusterDialOption(cert, key, ca)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create dial option")
+	}
+
+	return &AgonesAllocatorClient{
+		Config:   config,
+		DialOpts: dialOpts,
+	}, nil
+}
+
+func (c *AgonesAllocatorClient) Allocate(ctx context.Context, request *pb.AllocationRequest) (*pb.AllocationResponse, error) {
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", c.Config.AllocatorServiceHost, c.Config.AllocatorServicePort), c.DialOpts)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create dial remote allocator service")
+	}
+	defer conn.Close()
+
+	grpcClient := pb.NewAllocationServiceClient(conn)
+	response, err := grpcClient.Allocate(context.Background(), request)
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func validateClientConfig(config *AgonesAllocatorClientConfig) error {
 	var validationErrors error
 
 	ok, err := ValueIsEmpty(config.KeyFile, ErrKeyFileInvalid)
@@ -46,52 +87,42 @@ func NewAgonesAllocatorClient(config *AgonesAllocatorClientConfig) (*AgonesAlloc
 		validationErrors = errors.Wrap(validationErrors, err.Error())
 	}
 
-	//ok, err = ValueIsEmpty(config.CaCertFile, ErrCaCertFileInvalid)
-	//if !ok && err != nil {
-	//	validationErrors = errors.Wrap(validationErrors, err.Error())
-	//}
-
-	//TODO Validate Host, Port and Namespace
-
-	if validationErrors != nil {
-		return nil, validationErrors
+	ok, err = ValueIsEmpty(config.AllocatorServiceHost, ErrAllocatorServiceHostInvalid)
+	if !ok && err != nil {
+		validationErrors = errors.Wrap(validationErrors, err.Error())
 	}
 
-	return &AgonesAllocatorClient{Config: config}, nil
+	if config.AllocatorServicePort <= 0 {
+		validationErrors = errors.Wrap(validationErrors, ErrAllocatorServicePortInvalid.Error())
+	}
+
+	ok, err = ValueIsEmpty(config.Namespace, ErrAllocatorServiceNamespace)
+	if !ok && err != nil {
+		validationErrors = errors.Wrap(validationErrors, err.Error())
+	}
+
+	return validationErrors
 }
 
-func (c *AgonesAllocatorClient) Allocate(ctx context.Context, request *pb.AllocationRequest) (*pb.AllocationResponse, error) {
-	cert, err := ioutil.ReadFile(c.Config.CertFile)
+func loadCertificates(config *AgonesAllocatorClientConfig) (cert, key, ca []byte, err error) {
+	cert, err = ioutil.ReadFile(config.CertFile)
 	if err != nil {
-		panic(err)
-	}
-	key, err := ioutil.ReadFile(c.Config.KeyFile)
-	if err != nil {
-		panic(err)
-	}
-	cacert, err := ioutil.ReadFile(c.Config.CaCertFile)
-	if err != nil {
-		panic(err)
+		return nil, nil, nil, errors.Wrapf(err, "failed to read %s", config.CertFile)
 	}
 
-	dialOpts, err := createRemoteClusterDialOption(cert, key, cacert)
+	key, err = ioutil.ReadFile(config.KeyFile)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create dial option")
+		return nil, nil, nil, errors.Wrapf(err, "failed to read %s", config.KeyFile)
 	}
 
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", c.Config.AllocatorServiceHost, c.Config.AllocatorServicePort), dialOpts)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create dial remote allocator service")
-	}
-	defer conn.Close()
-
-	grpcClient := pb.NewAllocationServiceClient(conn)
-	response, err := grpcClient.Allocate(context.Background(), request)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to allocate request")
+	if len(config.CaCertFile) > 0 {
+		ca, err = ioutil.ReadFile(config.CaCertFile)
+		if err != nil {
+			return nil, nil, nil, errors.Wrapf(err, "failed to read %s", config.CaCertFile)
+		}
 	}
 
-	return response, nil
+	return cert, key, ca, nil
 }
 
 // createRemoteClusterDialOption creates a grpc client dial option with TLS configuration.
