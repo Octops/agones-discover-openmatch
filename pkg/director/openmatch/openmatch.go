@@ -14,6 +14,7 @@ import (
 	"io"
 	"math/rand"
 	"open-match.dev/open-match/pkg/pb"
+	"strings"
 	"time"
 )
 
@@ -149,7 +150,6 @@ func AssignTickets(client pb.BackendServiceClient, allocatorService *allocator.A
 }
 
 func assignTickets(ctx context.Context, req *pb.AssignTicketsRequest, assigner Assigner) (int, error) {
-	// TODO: Check for AssignTicketsResponse.Failures
 	assignments := CleanUpAssignmentsWithoutConnection(req.Assignments)
 
 	if len(assignments) == 0 {
@@ -157,8 +157,17 @@ func assignTickets(ctx context.Context, req *pb.AssignTicketsRequest, assigner A
 	}
 
 	req.Assignments = assignments
-	if _, err := assigner.AssignTickets(ctx, req); err != nil {
+	resp, err := assigner.AssignTickets(ctx, req)
+	if err != nil {
 		return len(assignments), errors.Wrapf(err, "failed to assign tickets with BackendServiceClient")
+	}
+
+	if len(resp.Failures) > 0 {
+		causes := []string{}
+		for _, failure := range resp.Failures {
+			causes = append(causes, fmt.Sprintf("ticketID %s: %s", failure.TicketId, failure.Cause.String()))
+		}
+		return len(assignments) - len(resp.Failures), errors.Errorf("total failed assignments %d: %s", len(resp.Failures), strings.Join(causes, ","))
 	}
 
 	return len(assignments), nil
