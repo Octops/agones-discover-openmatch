@@ -25,9 +25,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type AgonesAllocatorArgs struct {
+	KeyFile              string
+	CertFile             string
+	CaCertFile           string
+	AllocatorServiceHost string
+	AllocatorServicePort int
+	Namespace            string
+	MultiCluster         bool
+}
+
+type OctopsDiscoverArgs struct {
+	DiscoverServiceURL string
+}
+
 var (
-	intervalDirector  string
-	octopsDiscoverURL string
+	intervalDirector    string
+	allocatorMode       string
+	agonesAllocatorArgs = &AgonesAllocatorArgs{}
+	octopsDiscoverArgs  = &OctopsDiscoverArgs{}
 )
 
 // directorCmd represents the director command
@@ -43,24 +59,63 @@ It can then communicate the Assignments back to the Game Frontend.`,
 		runtime.SetupSignal(cancel)
 
 		logger.Info("starting OpenMatch Director")
-		// TODO: Refactor using Flags and Registry
-		client, err := allocator.NewAgonesDiscoverClientHTTP(octopsDiscoverURL)
+		agonesAllocator, err := BuildAgonesAllocatorService(allocatorMode)
 		if err != nil {
-			logger.Fatal(errors.Wrap(err, "failed to creating Octops Discover Client"))
+			logger.Fatal(err)
 		}
 
-		agonesAllocator := allocator.NewAllocatorService(&allocator.AgonesDiscoverAllocator{
-			Client: client,
-		})
 		if err := openmatch.RunDirector(ctx, logger, openmatch.ConnFuncInsecure, intervalDirector, agonesAllocator); err != nil {
 			logger.Fatal(errors.Wrap(err, "failed to start the Director"))
 		}
 	},
 }
 
+func BuildAgonesAllocatorService(mode string) (*allocator.AllocatorService, error) {
+	var allocatorSvc *allocator.AllocatorService
+	switch mode {
+	case "agones":
+		config := &allocator.AgonesAllocatorClientConfig{
+			KeyFile:              agonesAllocatorArgs.KeyFile,
+			CertFile:             agonesAllocatorArgs.CertFile,
+			CaCertFile:           agonesAllocatorArgs.CaCertFile,
+			AllocatorServiceHost: agonesAllocatorArgs.AllocatorServiceHost,
+			AllocatorServicePort: agonesAllocatorArgs.AllocatorServicePort,
+			Namespace:            agonesAllocatorArgs.Namespace,
+			MultiCluster:         agonesAllocatorArgs.MultiCluster,
+		}
+
+		client, err := allocator.NewAgonesAllocatorClient(config)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create AgonesDiscoverClientHTTP")
+		}
+		allocatorSvc = allocator.NewAllocatorService(&allocator.AgonesAllocator{
+			Client: client,
+		})
+	default: //"discover"
+		// TODO: Refactor using Flags and Registry
+		client, err := allocator.NewAgonesDiscoverClientHTTP(octopsDiscoverArgs.DiscoverServiceURL)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create AgonesDiscoverClientHTTP")
+		}
+		allocatorSvc = allocator.NewAllocatorService(&allocator.AgonesDiscoverAllocator{
+			Client: client,
+		})
+	}
+
+	return allocatorSvc, nil
+}
+
 func init() {
 	rootCmd.AddCommand(directorCmd)
 
 	directorCmd.Flags().StringVar(&intervalDirector, "interval", "5s", "interval the Director will fetch matches")
-	directorCmd.Flags().StringVar(&octopsDiscoverURL, "octops-discover-url", "http://localhost:8081", "the Octops Discover server URL")
+	directorCmd.Flags().StringVar(&allocatorMode, "mode", "discover", "allocator mode for the director")
+	directorCmd.Flags().StringVar(&octopsDiscoverArgs.DiscoverServiceURL, "octops-discover-url", "http://localhost:8081", "the Octops Discover server URL")
+	directorCmd.Flags().StringVar(&agonesAllocatorArgs.KeyFile, "key", "", "the private key file for the client certificate in PEM format")
+	directorCmd.Flags().StringVar(&agonesAllocatorArgs.CertFile, "cert", "", "the public key file for the client certificate in PEM format")
+	directorCmd.Flags().StringVar(&agonesAllocatorArgs.CaCertFile, "cacert", "", "the CA cert file for server signing certificate in PEM format")
+	directorCmd.Flags().StringVar(&agonesAllocatorArgs.AllocatorServiceHost, "allocator-host", "0.0.0.0", "the host address for allocator server")
+	directorCmd.Flags().IntVar(&agonesAllocatorArgs.AllocatorServicePort, "allocator-port", 443, "the host address for allocator server")
+	directorCmd.Flags().StringVar(&agonesAllocatorArgs.Namespace, "namespace", "default", "the game server kubernetes namespace")
+	directorCmd.Flags().BoolVar(&agonesAllocatorArgs.MultiCluster, "multicluster", false, "set to true to enable the multi-cluster allocation")
 }

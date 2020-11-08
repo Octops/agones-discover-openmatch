@@ -45,8 +45,8 @@ type GameServerDiscoveryClient interface {
 	FindGameServers(ctx context.Context, filters map[string]string) ([]byte, error)
 }
 
-func NewAllocatorService(service GameServerAllocator) AllocatorService {
-	return AllocatorService{
+func NewAllocatorService(service GameServerAllocator) *AllocatorService {
+	return &AllocatorService{
 		runtime.Logger().WithField("component", "agones_allocator"),
 		service,
 	}

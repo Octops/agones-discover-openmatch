@@ -33,7 +33,7 @@ spec:
         - image: octops/agones-openmatch:${TAG}
           name: mmf
           args:
-            - function
+            - mmf
             - --verbose
           imagePullPolicy: IfNotPresent
           ports:
@@ -73,7 +73,15 @@ spec:
           name: director
           args:
             - director
-            - --octops-discover-url=http://octops-discover.agones-openmatch.svc.cluster.local:8081
+            # uncomment the line below if using Octops Discover mode
+            #- --octops-discover-url=http://octops-discover.agones-openmatch.svc.cluster.local:8081
+            - --interval=1s
+            - --mode=agones # comment this line or change to --mode=discover to use Octops Discover Service
+            - --key=/tls/crt/tls.key
+            - --cert=/tls/crt/tls.crt
+            - --cacert=/tls/ca/tls-ca.crt
+            - --allocator-host=192.168.0.110 # IP of the exposed Agones Allocator Service
+            - --allocator-port=30304 # PORT of the exposed Agones Allocator Service
             - --verbose
           imagePullPolicy: IfNotPresent
           env:
@@ -90,6 +98,18 @@ spec:
             limits:
               cpu: "1"
               memory: "100Mi"
+          volumeMounts:
+            - name: tls-crt
+              mountPath: /tls/crt
+            - name: tls-ca
+              mountPath: /tls/ca
+      volumes:
+        - name: tls-crt
+          secret:
+            secretName: allocator-tls-crt
+        - name: tls-ca
+          secret:
+            secretName: allocator-tls-ca
 ---
 apiVersion: apps/v1
 kind: Deployment
