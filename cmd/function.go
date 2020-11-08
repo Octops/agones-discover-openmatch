@@ -26,7 +26,7 @@ import (
 
 // functionCmd represents the function command
 var functionCmd = &cobra.Command{
-	Use:   "function",
+	Use:   "mmf",
 	Short: "Start the Match Function Server",
 	Long: `The Match Function is the component that implements the core matchmaking logic. 
 A Match Function receives a MatchProfile as input should return matches for this MatchProfile.`,

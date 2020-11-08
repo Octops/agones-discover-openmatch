@@ -33,7 +33,7 @@ spec:
         - image: octops/agones-openmatch:latest
           name: mmf
           args:
-            - function
+            - mmf
             - --verbose
           imagePullPolicy: IfNotPresent
           ports:
