@@ -85,7 +85,10 @@ Below there is a list of all the services and components that put together deliv
     - Player Simulator
     - Game FrontEnd
     - Match Making Function (a.k.a MMF)
-    - Director and Allocator
+    - Director
+    - Allocator
+        - Octops Discover (Default)
+        - Agones Allocator Service
 
 - Open Match
     - Builtin: Backend, Frontend, Query Service, Evaluator, Synchronizer
@@ -125,6 +128,10 @@ The scenario considered for the matchmaking takes into consideration the followi
     - Skill and Latency are range based.
 
 ## Allocation Rules
+
+**Important**
+
+*The following documentation covers the use case where the Director is using the Octops Discover to find and allocated gameservers. Alternatively, this project also provides the option to use the Agones Allocator service. Check the [docs/agones-allocator.md](docs/agones-allocator.md) document for instructions.*
     
 The allocation service will try to find a GameServer that matches the criteria found on the `Extension` field of the `AssignTicketsRequest`. This information must match with Labels (Region and World) from the Fleet and GameServer.
 
@@ -318,13 +325,23 @@ $ kubectl -n open-match port-forward svc/open-match-grafana 3000
 # Username: Admin Password: openmatch
 ```
 
+## Troubleshooting
+
+If you are experiencing weird errors related to gRPC and Context deadlines on your local development environment, there is a reset Open Match script that will delete all the Open Match pods and Redis instances.
+
+I still don't have a clear idea of what gets corrupted or if this is something related to the lack of resources running locally.
+
+```bash
+$ ./hack/reset_openmatch.sh
+```
+
 ## Roadmap
 
 - [ ] Improve test cases and coverage
-- [ ] Implement Allocator using Agones Allocation Service via gRPC
+- [x] Implement Allocator using Agones Allocation Service via gRPC
 - [ ] Instrument with Prometheus
 - [ ] Explore different MMF logics
-- [ ] Record demo
+- [x] Record demo
 - [ ] Document multi cluster deployment
 - [ ] Extract Profile Generator to a service
 - [ ] Extract Allocator to a service
