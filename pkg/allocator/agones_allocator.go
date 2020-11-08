@@ -7,10 +7,15 @@ import (
 	"github.com/Octops/agones-discover-openmatch/internal/runtime"
 	"github.com/Octops/agones-discover-openmatch/pkg/extensions"
 	"github.com/pkg/errors"
+	"google.golang.org/grpc/status"
 	"open-match.dev/open-match/pkg/pb"
 )
 
 var _ GameServerAllocatorService = (*AgonesAllocator)(nil)
+
+var (
+	NotAvailableGameServerToAllocateMessage = "there is no available GameServer to allocate"
+)
 
 type AgonesAllocator struct {
 	Client *AgonesAllocatorClient
@@ -42,6 +47,12 @@ func (a *AgonesAllocator) Allocate(ctx context.Context, req *pb.AssignTicketsReq
 
 		resp, err := a.Client.Allocate(ctx, request)
 		if err != nil {
+			errStatus, ok := status.FromError(err)
+			if ok && errStatus.Message() == NotAvailableGameServerToAllocateMessage {
+				logger.Debug(NotAvailableGameServerToAllocateMessage)
+				continue
+			}
+
 			return err
 		}
 
