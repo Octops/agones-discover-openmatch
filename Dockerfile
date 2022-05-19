@@ -1,4 +1,4 @@
-FROM golang:1.14 AS builder
+FROM golang:1.17 AS builder
 
 WORKDIR /go/src/github.com/octops/agones-discover-openmatch
 
@@ -6,7 +6,7 @@ COPY . .
 
 RUN make build && chmod +x /go/src/github.com/octops/agones-discover-openmatch/bin/agones-openmatch
 
-FROM alpine
+FROM gcr.io/distroless/static:nonroot
 
 WORKDIR /app
 
