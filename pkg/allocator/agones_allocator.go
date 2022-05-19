@@ -37,8 +37,10 @@ func (a *AgonesAllocator) Allocate(ctx context.Context, req *pb.AssignTicketsReq
 		//TODO: Add PreferredGameServerSelector, MetaPatch, Scheduling. It must be part of the extensions
 		request := &pb_agones.AllocationRequest{
 			Namespace: a.Client.Config.Namespace,
-			RequiredGameServerSelector: &pb_agones.LabelSelector{
-				MatchLabels: filter.Labels,
+			GameServerSelectors: []*pb_agones.GameServerSelector{
+				{
+					MatchLabels: filter.Labels,
+				},
 			},
 			MultiClusterSetting: &pb_agones.MultiClusterSetting{
 				Enabled: a.Client.Config.MultiCluster,
